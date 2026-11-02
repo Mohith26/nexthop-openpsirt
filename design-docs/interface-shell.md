@@ -57,7 +57,7 @@ right its screen asks for.
 | Unassigned | A reader of either family in some product. It opens `/unassigned` where both families are counted, and the one family's list of unheld work where one is: the findings list under nobody assigned and nothing decided, or the code finding queue across products under nobody assigned (`design-docs/interface-review.md` § Work nobody holds) |
 | Dependency findings with a product picked | Declines where the reader holds them in another product, saying so on hover; its count is asked only where they are read here |
 | The Dependency findings and Unassigned badges | A reader of one half alone has the unit say which half the count is of (REQ-60) |
-| The Unassigned badges | One per family counted, side by side, each with its unit on hover and never summed; a family not counted is not asked (`design-docs/kinds.md` § Consumers) |
+| The Unassigned badge | One count of the items of work nobody holds, in every family the reader counts, as the totals by holder count work of both (`design-docs/kinds.md` § Consumers); on hover, each family's count apart. It is never a vulnerability count (REQ-87), and `/unassigned` counts each family apart. Where one family's count fails, the badge says it could not be read |
 | Security testing | A reader of security testing work in some product; declines in a product where it is not read, with the code family's line on hover |
 | Code findings over time | The same readers, below Security testing; declines until a product is picked, and in a product where the work is not read, saying why on hover |
 | Vulnerability reports, Disclosure deadlines | A reader of undisclosed work in some product |
