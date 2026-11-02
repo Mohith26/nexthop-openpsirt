@@ -41,3 +41,27 @@ func TestTheUpstreamVersionIsOneExpressionUnderEveryAlias(t *testing.T) {
 		t.Errorf("over cp the version reads %q, want %q", got, want)
 	}
 }
+
+// The sets a VEX document reads match a decision occurrence to a finding
+// themselves (readDecided): at any version where the outcome is one of
+// anyVersionList, and otherwise where both sides of each equality agree. So
+// each side read as a column is the expression the rule compares, and the rule
+// is those two arms and nothing else; an arm added to KeyMatches fails here
+// until the application's copy has it too.
+func TestTheVersionsReadForTheMatchAreTheSidesOfTheRule(t *testing.T) {
+	for _, side := range []struct{ got, want string }{
+		{keyedComponent, `COALESCE("de"."component_upstream_version", '')`},
+		{heldComponent, ComponentUpstreamExpr},
+		{keyedConsumer, `COALESCE("de"."consumer_upstream_version", '')`},
+	} {
+		if side.got != side.want {
+			t.Errorf("a side of the match reads %q, want %q", side.got, side.want)
+		}
+	}
+	if VersionsMatch != keyedComponent+" = "+heldComponent+" AND "+keyedConsumer+" = "+ConsumerUpstreamExpr {
+		t.Errorf("the match is no longer the two equalities read: %s", VersionsMatch)
+	}
+	if KeyMatches != `("cl"."outcome" IN (`+anyVersionList+") OR ("+VersionsMatch+"))" {
+		t.Errorf("the rule is no longer any version or the two equalities: %s", KeyMatches)
+	}
+}
