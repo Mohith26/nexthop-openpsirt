@@ -56,6 +56,11 @@ func (g grain) exploited() string { return g.pick(exploitedAcross, `MAX("f"."hit
 
 func (g grain) incident() string { return g.pick(incidentAcross, `MAX("f"."hit_here")`) }
 
+// due is the earliest deadline among the group's open occurrences. A row
+// closed since is among them on a day gone by, and its deadline no longer
+// stands; the partial groups already carry the open rows' deadline.
+func (g grain) due() string { return g.pick(openDue, `MIN("f"."due_at")`) }
+
 // withFix is how many occurrences name a version that fixes the issue.
 func (g grain) withFix() string { return g.pick(withFixAcross, `SUM("f"."with_fix")`) }
 
@@ -353,7 +358,7 @@ func (f Filter) partialColumns() []partColumn {
 		columns = append(columns, partColumn{`MAX("f"."closed_at")`, "MAX", "closed_at"})
 	}
 	if f.Overdue || f.DueBefore != nil || f.SortBy == ByDeadline {
-		columns = append(columns, partColumn{`MIN("f"."due_at")`, "MIN", "due_at"})
+		columns = append(columns, partColumn{openDue, "MIN", "due_at"})
 	}
 	if len(f.fixStates()) > 0 {
 		columns = append(columns, partColumn{`MIN("f"."fix_state")`, "MIN", "fix_least"},

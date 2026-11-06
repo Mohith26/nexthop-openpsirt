@@ -110,6 +110,10 @@ type Group struct {
 	// recorded flaw rendered identically to any other row.
 	Undisclosed bool
 	DiscloseAt  *time.Time
+	// PublicationUnknown says an occurrence a replaced inventory's check
+	// recorded opens over the widest stretch, because OSV gave the issue no
+	// date. Only on a list read on a day.
+	PublicationUnknown bool
 	// Labels are the words somebody put on this, as they were typed.
 	Labels []string
 	// OpenedAt is when the earliest of these occurrences opened here, which is
@@ -323,9 +327,10 @@ func (s *Store) inScope(ctx context.Context, subject access.Subject, scope Scope
 			if err != nil {
 				return 0, nil, nil, err
 			}
-			// Every read narrowed here is over open rows.
+			// Over the rows the read lists: open now, or on the day asked.
+			held, heldArgs := openOn("f", filter.OpenOn)
 			if filter.replaced, err = holding(ctx, s.db, filter.BuildID, under,
-				`"f"."closed_at" IS NULL`); err != nil {
+				held, heldArgs...); err != nil {
 				return 0, nil, nil, err
 			}
 		}
@@ -570,8 +575,9 @@ func groupFrom(row decorated, named map[int64]Vulnerability, rated map[RatedKey]
 		State:        stateWord(row.Occurrences, row.Waiting, row.Approved, row.Lapsed),
 		SentBack:     row.SentBack > 0,
 		OpenedAt:     row.OpenedAt, DueAt: row.DueAt,
-		Undisclosed: row.Undisclosed,
-		DiscloseAt:  row.DiscloseAt,
+		Undisclosed:        row.Undisclosed,
+		DiscloseAt:         row.DiscloseAt,
+		PublicationUnknown: row.PublicationUnknown > 0,
 	}
 	if issue, held := named[row.VulnerabilityID]; held {
 		issue = issue.RatedIn(rated[RatedKey{floor.ProductID, row.VulnerabilityID}])
@@ -778,6 +784,9 @@ type decorated struct {
 	Approved            int   `bun:"approved_here"`
 	Lapsed              int   `bun:"lapsed_here"`
 	SentBack            int   `bun:"sent_back_here"`
+	// PublicationUnknown is how many occurrences open over the widest
+	// stretch because no date was known for the issue.
+	PublicationUnknown int `bun:"publication_unknown"`
 }
 
 // heads reads one page of the findings list's groups, most urgent first, from
@@ -853,7 +862,7 @@ func (s *Store) heads(ctx context.Context, buildIDs []int64, visible []access.Vi
 // are one row, because upgrading them is one act, deciding about them is one
 // decision and assigning them is one rule.
 func (s *Store) foldGroups(buildIDs []int64, visible []access.Visibility, filter Filter) *bun.SelectQuery {
-	return filter.folded(s.db, openRows(s.db, buildIDs, visible), issueAndComponent).
+	return filter.folded(s.db, rowsOn(s.db, buildIDs, visible, filter.OpenOn), issueAndComponent).
 		GroupExpr(GroupedOn)
 }
 
@@ -886,14 +895,16 @@ func paged(db bun.IDB, grouped *bun.SelectQuery, columns ...string) *bun.SelectQ
 	return q.ColumnExpr(`COUNT(*) OVER () AS "total"`)
 }
 
-// openRows is open findings in these builds that the reader may see, read as
-// "f" and not yet grouped.
-func openRows(db bun.IDB, buildIDs []int64, visible []access.Visibility) *bun.SelectQuery {
+// rowsOn is open findings in these builds that the reader may see, read as
+// "f" and not yet grouped: open now, or at any moment of a day where one is
+// given, closed since or not.
+func rowsOn(db bun.IDB, buildIDs []int64, visible []access.Visibility, on *time.Time) *bun.SelectQuery {
 	kinds, args := kind.Triage.Where(`"f"."kind"`)
+	held, heldArgs := openOn("f", on)
 	return db.NewSelect().
 		TableExpr(`"finding" AS "f"`).
 		Where(`"f"."build_id" IN (?)`, bun.List(buildIDs)).
-		Where(`"f"."closed_at" IS NULL`).
+		Where(held, heldArgs...).
 		Where(`"f"."visibility" IN (?)`, bun.List(visible)).
 		Where(kinds, args...)
 }
@@ -906,8 +917,8 @@ func openRows(db bun.IDB, buildIDs []int64, visible []access.Visibility) *bun.Se
 // The fold is the unit a person acts in: two binaries of one source package
 // are one row, because upgrading them is one act, deciding about them is one
 // decision and assigning them is one rule.
-func openGroups(db bun.IDB, buildIDs []int64, visible []access.Visibility) *bun.SelectQuery {
-	return openRows(db, buildIDs, visible).
+func openGroups(db bun.IDB, buildIDs []int64, visible []access.Visibility, on *time.Time) *bun.SelectQuery {
+	return rowsOn(db, buildIDs, visible, on).
 		Join(`JOIN "component" AS "c" ON "c"."id" = "f"."component_id"`).
 		GroupExpr(GroupedOn)
 }
@@ -970,7 +981,7 @@ func (s *Store) decorate(ctx context.Context, buildIDs []int64, productID int64,
 		// any of them carries. The age a deadline relates to is this one, not
 		// the year in the identifier.
 		ColumnExpr(`MIN("f"."opened_at") AS "opened_at"`).
-		ColumnExpr(`MIN("f"."due_at") AS "due_at"`).
+		ColumnExpr(openDue+` AS "due_at"`).
 		// Anything here undisclosed, and the earliest embargo
 		// ends. One undisclosed occurrence among fifty makes the group
 		// undisclosed, which is what it is for anybody deciding what may be
@@ -1017,10 +1028,15 @@ func (s *Store) decorate(ctx context.Context, buildIDs []int64, productID int64,
 	// The decision state of each group, counted the way the state filter
 	// counts it, so the row and the filter cannot disagree. One spelling of
 	// each state, in decided.go.
+	if filter.OpenOn != nil {
+		// Only on a day: a row open now was never a check's match.
+		q = q.ColumnExpr(`SUM(CASE WHEN ` + PublicationUnknown("f") + ` THEN 1 ELSE 0 END) AS "publication_unknown"`)
+	}
+	held, heldArgs := openOn("f", filter.OpenOn)
 	q = decisionCounts(q, "?", []any{productID},
 		decisionWaiting, decisionApproved, decisionLapsed, decisionSentBack).
 		Where(`"f"."build_id" IN (?)`, bun.List(buildIDs)).
-		Where(`"f"."closed_at" IS NULL`).
+		Where(held, heldArgs...).
 		Where(`"f"."visibility" IN (?)`, bun.List(visible)).
 		Where(kinds, kindArgs...).
 		// The page's issues and the page's folds, as two lists. That admits an
@@ -1109,4 +1125,26 @@ func firstLineOf(description string) string {
 		return cut + "…"
 	}
 	return strings.TrimSpace(said)
+}
+
+// openDue is the earliest deadline among a group's open rows. A row closed
+// since keeps its deadline, which no longer stands, so a list read on a day
+// judges what was due by the rows still open.
+const openDue = `MIN(CASE WHEN "f"."closed_at" IS NULL THEN "f"."due_at" END)`
+
+// openOn is the condition that a finding under this alias is open: now, or at
+// any moment of a day, in UTC, where one is given.
+//
+// On a day, a row never present is left out, as every trend step leaves it
+// out, and so is a row one run recorded already closed, which was never open,
+// unless a check recorded it.
+func openOn(alias string, on *time.Time) (string, []any) {
+	if on == nil {
+		return fmt.Sprintf(`"%s"."closed_at" IS NULL`, alias), nil
+	}
+	return fmt.Sprintf(`"%[1]s"."opened_at" < ? AND ("%[1]s"."closed_at" IS NULL OR "%[1]s"."closed_at" > ?)
+	AND COALESCE("%[1]s"."closed_because", '') NOT IN (?)
+	AND ("%[1]s"."opened_run_id" IS NULL OR "%[1]s"."closed_run_id" IS NULL
+		OR "%[1]s"."opened_run_id" <> "%[1]s"."closed_run_id" OR (%[2]s))`, alias, checkRecorded(alias)),
+		[]any{on.Add(24 * time.Hour), *on, bun.List(NeverPresent())}
 }

@@ -109,9 +109,10 @@ const (
 	// stopped reporting it. It is always flagged and never suppressed.
 	Unexplained Closure = "unexplained"
 	// Invalid means the record should not have existed: this build never
-	// shipped the thing, the entry named the wrong product, or it duplicates
-	// an issue already tracked. The record is taken back rather than the world
-	// having changed.
+	// shipped the thing, the entry named the wrong product, it duplicates an
+	// issue already tracked, or it is a replaced inventory's check matching an
+	// issue later dated after the replacement. The record is taken back rather
+	// than the world having changed.
 	//
 	// It is on a different axis from the rest, with Unaffected. Every other
 	// answers "why did this stop being present"; these two say it was never
@@ -249,6 +250,9 @@ type Run struct {
 	// with, as the moment it describes. Empty where it read none, and nothing
 	// was narrowed.
 	RecordsVersion string `bun:"records_version"`
+	// CheckedScanID is the replaced inventory a check run read, absent on a
+	// scan of what the build holds.
+	CheckedScanID *int64 `bun:"checked_scan_id"`
 }
 
 // Finding is a vulnerability at an occurrence.

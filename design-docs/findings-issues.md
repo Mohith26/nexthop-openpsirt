@@ -3,7 +3,7 @@
 One issue across every name it goes by, what a report says about it, and how
 reports that disagree are merged.
 
-Satisfies REQ-18, REQ-22. Names REQ-82, not built.
+Satisfies REQ-18, REQ-22, REQ-82.
 
 ## Contents
 
@@ -51,6 +51,8 @@ applies the scan, and is a record of its own (REQ-22).
 | One report stands for an issue across its names | A second is refused |
 | A re-affirmation reads the kept issue's rating in force and accepts a decision filed under the absorbed name at the same occurrence | |
 | What a report said moves to the kept issue: names, findings, classification, ratings, references, ranking signals | It is observed state about one issue. The absorbed row keeps its copy |
+| OSV's published and modified dates move to the kept issue where it holds none, with when OSV was asked for them; an answer with no date stays with the name asked | The dates describe the one issue; an undated answer says nothing of the name kept |
+| Before the findings move, a replaced inventory's check matches marked publication date unknown under either issue are rewritten as the merged issue dates them (`design-docs/findings-closure.md` § Replaced inventories) | The marker is worked out from the issue a match is read as; a merge clearing it unrewritten counts a guessed opening as dated |
 | A scanned finding open under both names at one occurrence keeps the longer-open row; the other closes `invalid` | One finding held twice. A finding a person entered is never closed this way |
 | The surviving finding takes the other's assignment where it has none | |
 | Two live decisions at one product and occurrence collide where their versions agree, or where both stand at any version | Those hold one key under one issue (REQ-25) |
@@ -125,14 +127,26 @@ all 11,435.
 ## Issue dates
 
 An issue's published and last-modified dates are read from OSV, asked in the
-background, because no scanner report carries either (REQ-82). Not built.
+background, because no scanner report carries either (REQ-82).
 
 | Rule | Reason |
 |---|---|
-| The source is OSV | Answers national and advisory identifiers, in batches, without a key |
-| Asked in the background | A scan never waits on the network (REQ-12) |
-| Only the dates are taken | Severity and fix state stay the scanner's |
-| An issue OSV does not know has no date; a figure needing one says unknown | |
+| The source is OSV | It answers national, advisory and distribution identifiers without a key |
+| One request per name, `GET /v1/vulns/{id}` | OSV has no lookup of several identifiers at once; its batch query takes packages and commits and answers no publication date |
+| Asked in the background, by one replica under a lease, 200 issues a pass, a tenth of a second apart | A scan never waits on the network (REQ-12) |
+| On unless turned off, a setting read before every request | An identifier is public; an air-gapped deployment turns it off |
+| Only a published vulnerability, by the row it stands as | A flaw minted here and an analyzer's rule are known to nobody outside |
+| The issue's own identifier is asked first, then its CVE names, its GitHub names and the rest, five at most, until one answers | |
+| A name is sent as OSV spells it: a GitHub advisory's suffix lower case, openSUSE's prefix mixed | Names are stored in capitals and OSV matches exactly |
+| A name that is no advisory identifier is never sent | |
+| Only the two dates are taken | Severity and fix state stay the scanner's |
+| An issue OSV does not know is recorded as asked with no date; a figure needing one says unknown | |
+| An empty answer keeps dates already held | A record OSV stops serving was still published when it said |
+| A first published date rewrites what a replaced inventory's check recorded of the issue undated, in the same transaction, after taking the issue's row (`design-docs/findings-closure.md` § Replaced inventories) | A check holding the row commits its matches first |
+| A known issue is asked again after thirty days; an unknown one daily for its first fourteen days here, then every thirty | OSV revises records; a fresh issue reaches it within hours, and an unknown answer rarely changes |
+| OSV not answering ends the pass and leaves the issue due: a failed connection, a refusal by the outbound guard, a status other than success, not found or a bad request | A proxy or a resolver inside the network says nothing about the issue |
+| The client reaches `api.osv.dev` alone, follows no redirect and connects nowhere inside this network (REQ-69) | |
+| The issue page states both dates and whether they are stated, unknown or not yet asked | |
 
 ## Limits
 
@@ -140,3 +154,4 @@ background, because no scanner report carries either (REQ-82). Not built.
 |---|---|
 | A merge is not undone | Nothing a report says unmerges, and unmerging divides findings and decisions made since |
 | An absorbed issue's filed name is not taken by the kept issue | Where the best-known name is the absorbed row's, the kept issue stays filed where it is |
+| Time to fix is measured from a finding's opening, never from publication, except that a replaced inventory's dated check match opens at the later of its publication and the inventory's arrival | The issue page shows the dates |

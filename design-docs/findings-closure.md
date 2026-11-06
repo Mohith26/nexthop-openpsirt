@@ -3,7 +3,7 @@
 How a scan opens and closes findings, why each closure happened, and the claims
 and records that close a finding without a version change.
 
-Satisfies REQ-11, REQ-14, REQ-20, REQ-21, REQ-31.
+Satisfies REQ-11, REQ-14, REQ-20, REQ-21, REQ-31, REQ-88.
 
 ## Contents
 
@@ -15,6 +15,7 @@ Satisfies REQ-11, REQ-14, REQ-20, REQ-21, REQ-31.
 - [Affected build sets](#affected-build-sets)
 - [Build-declared claims](#build-declared-claims)
 - [CVE record ranges](#cve-record-ranges)
+- [Replaced inventories](#replaced-inventories)
 - [Limits](#limits)
 
 ## Scans as separate work
@@ -75,7 +76,7 @@ statements, against 324,508 a finding at a time, and no row re-ranked twice.
 | Superseded | The upstream version moved and the issue came along: the same issue is open at the new version |
 | Fixed | A person declared a recorded flaw fixed here; the one closure a person writes |
 | Unexplained | The component is present and unchanged, and the scanner stopped reporting it |
-| Invalid | The record should not have existed: never shipped, wrong product, or a duplicate |
+| Invalid | The record should not have existed: never shipped, wrong product, a duplicate, or a check's match on an issue published after the replacement |
 | Unaffected | The issue's CVE record excludes the upstream release held (§ CVE record ranges) |
 | Disclaimed | A supplier says its product, at the shipped version, is unaffected and every route up runs through it (`design-docs/triage-evidence.md` § Evidence from publishers); or a trusted upstream says the component at the shipped version is unaffected or fixed (`design-docs/upstream.md` § Statements applied) |
 
@@ -256,6 +257,56 @@ attempt (`design-docs/queue.md` § Failure handling). The register lists these
 closures under their reason with the lines, judged against no deadline.
 `design-docs/ingest-scanner.md` § CVE records holds where the snapshot comes from.
 
+## Replaced inventories
+
+A branch inventory a later one replaced is checked once more, against issues
+published while it was current, so an exposure fixed before any scan saw it is
+still recorded (REQ-88).
+
+| Rule | Reason |
+|---|---|
+| Each branch inventory replaced after the upgrade that introduced the check owes one check, recorded when a check run of it finishes; no lookback window | How long it was current does not matter |
+| An inventory already replaced at that upgrade owes none, marked by the upgrade; a fresh install marks nothing | Its history would be checked only against today's data |
+| A tag is never checked | A tag is scanned against today's data already |
+| The replaced inventory and its replacement are rebuilt from the graph's intervals at their two scans and given to the scanner as one inventory | Nothing a build sent is kept, and one scan answers both |
+| The check covers issues published from the settle delay before the data date of the last successful scan that started while the inventory was current, until the replacement arrived | Data dated a moment need not yet carry an issue published just before it; a match that scan did report is covered already |
+| An inventory no scan reached is checked against every issue published before its replacement | |
+| A data date is the scanner's database build time, or the run's start where it names none | |
+| It runs on the first scanner data dated at least the settle delay after the replacement, a setting shipping at two days; data dated earlier hands the job back for six hours | An issue reaches the scanner's data up to a day after publication |
+| The scheduling pass asks for checks owed by the newest data any scan has used, fifty at a time, newest inventory first | A backlog never holds the queue |
+| A check whose job ran out of attempts is not asked for again until an operator puts the job back | One that always fails would hold the worker with a scan of two inventories every cycle |
+| A scan of what a build holds is always claimed before a check | |
+| An issue is dated by its published date from OSV (`design-docs/findings-issues.md` § Issue dates), or by when this deployment first carried it where OSV has none | |
+| An issue nobody here has carried is filed, and the check waits an hour at a time while any issue it reports has not been asked of OSV, for up to a day after the later of that issue's first sighting and the check falling due; then it is dated by that sighting | Bounded from the check falling due, so a backlog the date pass has not reached does not spend the one check; bounded at all, so an OSV outage holds no check |
+| A match is written closed: opening at the later of publication and the inventory's arrival, closing at the replacement | |
+| A match on an issue OSV was asked about and gave no date, first carried here at or after the replacement, is written too, marked publication date unknown | Dropping it loses an exposure that may have been real |
+| A marked match opens at the later of the last scan's data date and the inventory's arrival, the widest stretch it could have been held over | A day in that stretch counts it open |
+| An issue nobody asked OSV about is never marked; it is dated by its sighting | With the date pass off, every issue new here would otherwise read as undated |
+| The marker is worked out, never stored: a check's match whose issue has no published date and was first carried at or after the match's closing | A date arriving clears it |
+| The marker is shown on the findings list read on a day, as `publication_unknown` and on the row | The finding screen reads open findings |
+| The date pass recording a first published date rewrites the issue's marked matches in the same retryable transaction, and only those | A person's decision is never rewritten |
+| A date inside the check's window moves the opening to the later of that date and the inventory's arrival | The row becomes what the check records for a dated issue |
+| A date at or after the replacement withdraws the match as `invalid` (§ Closure reasons) | It was never exposed: out of every open set and of found after fixed |
+| A date before the window, the settle delay before the last scan's data date, withdraws the match as `invalid` | The check would not have recorded it; that scan was the authority. Whether a match exists never depends on when OSV answered |
+| The window is worked out again when the date arrives, from the runs and the settle delay then | |
+| A merge rewrites the marked matches of either issue before they are read as one: by the date either held, otherwise by the earlier first sighting where it moved, leaving marked a match closing at or before it | `design-docs/findings-issues.md` § Merged issues |
+| A match on an issue with a known date counts as opened and fixed in the remediation figures, timed from its opening to the replacement (`design-docs/analytics-program.md` § Remediation metrics) | It was open over that stretch |
+| A marked match, and one withdrawn, counts in no remediation figure | A marked duration is a guess; a withdrawn match was never exposed |
+| Its closure reason is the replacement's: patched or disclaimed where the replacement's claims say so there, unaffected where its record says so, otherwise upgraded, revised, removed or unexplained as for a run (§ Closure reasons) | |
+| A match closed patched names the claim it stands on, one closed disclaimed the statement, one closed unaffected the record | Where it is the latest row at its occurrence, the VEX document and the disclaimer reads take their evidence from it |
+| The latest row at an occurrence is the one closed last, its identifier breaking a tie, for the VEX document, the decidable findings, a release comparison's reason and a run's read of what closed there before. That read takes the latest row a scan wrote at each occurrence beside the latest of all, so a match never hides the replacement's row from the order | A match is written after the replacement's own rows about a stretch that ended before them, so it never outranks them |
+| Where the replacement is affected at the same occurrence, nothing is written | The replacement's own scan reports it |
+| A match the replaced inventory had patched, cleared or disclaimed is not written | It was never exposed |
+| A match any row of the build already covers at that occurrence identity over any part of the stretch is not written | A run stays the authority on what it reported |
+| The check is a run of its own, naming the inventory it checked, and opens and closes every row it writes | Every row keeps its provenance (REQ-13) |
+| It takes the build by writing a fresh value into its row, and writes in one retryable transaction | A scan and a check of one build never interleave; a write of the value held is skipped on MySQL and MariaDB, so never certified on a cluster |
+| It takes the issues it read with no date by writing a fresh value into their rows, repeating that each has no date and is its own issue, and goes again where one gained a date or merged away since; the date pass and a merge take an issue before rewriting its matches | A date or merge committed between the check's read and its commit is either read by the check or finds the match to rewrite |
+| Nothing is notified, assigned or given a deadline | Nothing is left to act on |
+| The replaced upload's receipt counts what it found as found after fixed, less any match withdrawn; no other receipt answers from it | |
+| A check run is never a build's last scan: rescheduling, readiness and the latest run ignore it | |
+
+The cost, measured in `design-docs/findings-measurements.md` § Replaced inventory check, is the scanner's run plus about a second.
+
 ## Limits
 
 | Limit | Detail |
@@ -265,4 +316,7 @@ closures under their reason with the lines, judged against no deadline.
 | A corrected record reaches findings at the next scan | The run is the one writer of what it closes; a snapshot arriving between scans writes nothing |
 | The finding screen reads open findings; an unaffected closure is read in the register with the lines | |
 | A wrong record cannot be overridden here. Not built | A run consults no decision before closing. Correcting it is correcting the record, which the next snapshot carries |
+| An issue OSV never dates that this deployment carried before the replacement is dated by that sighting, unmarked | One first seen here late is recorded from a later opening than its publication |
+| A check that recorded nothing is still the one check | Data published to the scanner after the settle delay is not seen |
+| A settle delay changed between a check and its issue's first date moves the window that date is judged against | The window is worked out, never stored |
 | The outbound VEX document says nothing about an unaffected closure | Telling customers a release is unaffected is a decision, never a closure |

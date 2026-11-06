@@ -3,7 +3,7 @@
 What an auditor reads: everything known in a build, what stands on one person,
 how much a second person did, and the dismissals.
 
-Satisfies REQ-17, REQ-42, REQ-43, REQ-49, REQ-52, REQ-53.
+Satisfies REQ-17, REQ-42, REQ-43, REQ-49, REQ-50, REQ-52, REQ-53.
 
 ## Contents
 
@@ -41,9 +41,20 @@ it was met. A page of the catalog's own (`design-docs/analytics-catalog.md`
 
 Findings and decisions filter instead on opened after, opened before, closed
 after, proposed after, and an age in days from either side; an age and a date on
-one side keep the tighter. Closed after reaches nothing on the findings lists,
-which read open rows, so the filter panel does not offer it; an address carrying
-it shows it among the filters in force, removable.
+one side keep the tighter. Closed after reaches nothing on a findings list of
+open rows, and reaches what closed since on one read on a day; the filter panel
+does not offer it, and an address carrying it shows it among the filters in
+force, removable.
+
+| Open on a day | Rule |
+|---|---|
+| Rows | Every finding open at any moment of that day in UTC, closed since or not, in place of what is open now |
+| Reach | The findings list by issue and by component, their totals, the count below the minimum severity, and their files (REQ-50), through the same visibility as the list |
+| Decisions, assignment, deadlines and ratings | As they stand now; nothing about them is kept by day |
+| A group's deadline, overdue and due-before | Read from its rows still open, in every grouping, count and order; a row closed since keeps a deadline that no longer stands |
+| A finding a replaced inventory's check recorded | Open on the days between its opening and its replacement (`design-docs/findings-closure.md` § Replaced inventories); a row says publication date unknown where its opening assumed the widest stretch |
+| A finding never present, `invalid` or `unaffected` | Open on no day, as in every trend step |
+| A finding one run recorded already closed, other than a check's | Open on no day; it was never open |
 
 ## The exception report
 

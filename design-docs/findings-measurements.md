@@ -11,6 +11,8 @@ justifies. `make measure` re-runs the harness-driven ones.
 - [Two-level grouping](#two-level-grouping)
 - [Across products](#across-products)
 - [A year of nightly scans](#a-year-of-nightly-scans)
+- [Replaced inventory check](#replaced-inventory-check)
+- [Remediation beside a check](#remediation-beside-a-check)
 
 ## Fan-out cost
 
@@ -158,3 +160,46 @@ The first night is 1,605 statements.
 
 Not measured: reads narrowed by product (run as an administrator), several
 builds, and observed churn. The harness constants are the model.
+
+## Replaced inventory check
+
+Justifies running the check as one transaction per replaced inventory
+(`design-docs/findings-closure.md` § Replaced inventories). Model: the
+full-size switch image, 6,866 components; the replacement moves every
+hundredth package and the kernel, 69 components; every package of the
+replaced inventory reported against one issue published while it was current.
+The scanner's own run is left out.
+
+| Engine | Both inventories read | The check | Reports dated | Findings recorded |
+|---|---:|---:|---:|---:|
+| SQLite | 63 ms | 760 ms | 6,843 | 132 |
+| PostgreSQL | 85 ms | 1.04 s | 6,843 | 132 |
+| MySQL | 52 ms | 812 ms | 6,843 | 132 |
+| MariaDB | 42 ms | 1.43 s | 6,843 | 132 |
+
+| Reading | Detail |
+|---|---|
+| Single samples | An order of magnitude, as elsewhere here |
+| The check is a scan's apply twice over | Both inventories are fanned out over every occurrence, then compared |
+| The scanner's run dominates | A scan of the image takes minutes; the check's writes are a second |
+
+## Remediation beside a check
+
+Justifies reading the check's matches as one set in the remediation figures
+(`design-docs/analytics-program.md` § Remediation metrics). Model: the
+replaced inventory check above, then a run opening fifteen issues at every
+component, a third of them closed by a later run as upgraded: 103,095
+findings. Median of five reads of one product's figures over all time.
+
+| Engine | No check match counted | Asked of each row | One set |
+|---|---:|---:|---:|
+| SQLite | 360 ms | 385 ms | 374 ms |
+| PostgreSQL | 102 ms | 1,685 ms | 170 ms |
+| MySQL | | | 161 ms |
+| MariaDB | | | 216 ms |
+
+| Reading | Detail |
+|---|---|
+| Asked of each row | Two correlated EXISTS per row raise PostgreSQL's estimate past its default `jit_above_cost`, and each statement spends over a second compiling |
+| One set | An uncorrelated lookup prices each statement under the threshold |
+| MySQL and MariaDB | Measured on the set alone |

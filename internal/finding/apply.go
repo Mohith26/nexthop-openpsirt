@@ -14,6 +14,7 @@ import (
 	"github.com/nexthop-ai/openpsirt/internal/catalog"
 	"github.com/nexthop-ai/openpsirt/internal/database"
 	"github.com/nexthop-ai/openpsirt/internal/finding/kind"
+	"github.com/nexthop-ai/openpsirt/internal/graph"
 	"github.com/nexthop-ai/openpsirt/internal/rating"
 )
 
@@ -69,7 +70,7 @@ func (s *Store) Apply(ctx context.Context, buildID, runID int64, reported []Repo
 			return fmt.Errorf("take the build: %w", err)
 		}
 
-		run, err := s.readRun(ctx, tx, buildID, runID, reported)
+		run, err := s.readRun(ctx, tx, buildID, runID, reported, graph.Now)
 		if err != nil {
 			return err
 		}
@@ -152,9 +153,9 @@ type applyRun struct {
 }
 
 // readRun reads what applying a scan works from, inside the transaction that
-// writes.
+// writes, with the build's inventory as it stood at a moment.
 func (s *Store) readRun(ctx context.Context, tx bun.IDB, buildID, runID int64,
-	reported []Reported) (*applyRun, error) {
+	reported []Reported, at graph.Moment) (*applyRun, error) {
 
 	run := &applyRun{buildID: buildID, runID: runID}
 	issues := make([]Named, 0, len(reported))
@@ -198,10 +199,10 @@ func (s *Store) readRun(ctx context.Context, tx bun.IDB, buildID, runID int64,
 		return nil, err
 	}
 
-	if run.present, err = openComponents(ctx, tx, buildID); err != nil {
+	if run.present, err = openComponents(ctx, tx, buildID, at); err != nil {
 		return nil, err
 	}
-	if run.occurrences, err = openOccurrences(ctx, tx, buildID); err != nil {
+	if run.occurrences, err = openOccurrences(ctx, tx, buildID, at); err != nil {
 		return nil, err
 	}
 	// The build's own claims about what it ships. Applied here rather than
@@ -210,10 +211,14 @@ func (s *Store) readRun(ctx context.Context, tx bun.IDB, buildID, runID int64,
 	//
 	// What a document uploaded on its own says about the build's root is the
 	// build's claim too, brought up to date first.
-	if err := publishedForBuild(ctx, tx, productID, buildID); err != nil {
-		return nil, err
+	// An inventory read at an earlier moment brings nothing up to date: what
+	// it argued then is already on record.
+	if at.IsNow() {
+		if err := publishedForBuild(ctx, tx, productID, buildID); err != nil {
+			return nil, err
+		}
 	}
-	if run.claims, err = openClaims(ctx, tx, buildID); err != nil {
+	if run.claims, err = openClaims(ctx, tx, buildID, at); err != nil {
 		return nil, err
 	}
 	// What suppliers say about their own products, where it can close a
@@ -225,7 +230,7 @@ func (s *Store) readRun(ctx context.Context, tx bun.IDB, buildID, runID int64,
 	}
 	// Where each product a claim or a statement names sits in this build,
 	// worked out once per product.
-	if run.placed, err = placing(ctx, tx, buildID, run.present, run.occurrences); err != nil {
+	if run.placed, err = placing(ctx, tx, buildID, run.present, run.occurrences, at); err != nil {
 		return nil, err
 	}
 	if run.suppliers, err = disclaimers(ctx, tx, productID, issues, issueIDs, run.placed); err != nil {
@@ -1003,12 +1008,19 @@ func latestClosed(ctx context.Context, db bun.IDB, buildID int64,
 				Where(`"lf"."vulnerability_id" IN (?)`, bun.List(batch)).
 				GroupExpr(grouping)
 		}
+		// A replaced inventory's check writes its rows after the
+		// replacement's, so by identifier its match at an occurrence hides the
+		// replacement's row there. The latest a scan wrote is read beside it,
+		// for the order below to rank.
+		scanned := func(grouping string) *bun.SelectQuery {
+			return latest(grouping).Where(`NOT (` + checkRecorded("lf") + `)`)
+		}
 		var rows []Finding
 		kinds, kindArgs := kind.Closure.Where(`"kind"`)
 		err := db.NewSelect().Model(&rows).
 			Column("id", "vulnerability_id", "component_id", "consumer_id",
 				"occurrence_identity", "closed_because", "suppressed_by", "unaffected_by", "stated_by").
-			// The range again outside the two arms: a membership test under OR
+			// The range again outside the arms: a membership test under OR
 			// is never a semi-join on PostgreSQL or MySQL, so without it the
 			// read walks every finding in the deployment.
 			Where(`"build_id" = ?`, buildID).
@@ -1018,10 +1030,13 @@ func latestClosed(ctx context.Context, db bun.IDB, buildID int64,
 			WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
 				return q.
 					WhereOr(`"id" IN (?)`, latest(`"lf"."vulnerability_id", "lf"."component_id", "lf"."consumer_id"`)).
+					WhereOr(`"id" IN (?)`, scanned(`"lf"."vulnerability_id", "lf"."component_id", "lf"."consumer_id"`)).
 					WhereOr(`"id" IN (?)`, latest(`"lf"."vulnerability_id", "lf"."occurrence_identity"`))
 			}).
-			// Ascending, so the last row read at an occurrence is its latest.
-			OrderExpr(`"id" ASC`).
+			// Ascending, so the last row read at an occurrence is its latest,
+			// in the order Later gives: a replaced inventory's check writes
+			// its rows after the replacement's, about a stretch before them.
+			OrderExpr(`"closed_at" ASC, "id" ASC`).
 			Scan(ctx)
 		if err != nil {
 			return err
