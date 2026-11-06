@@ -693,6 +693,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#replaced-inventories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replaced inventories
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#cve-records" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -824,6 +835,17 @@
     <span class="md-ellipsis">
       
         Upstream currency
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#issue-publication-dates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Issue publication dates
       
     </span>
   </a>
@@ -1474,6 +1496,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#replaced-inventories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replaced inventories
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#cve-records" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1605,6 +1638,17 @@
     <span class="md-ellipsis">
       
         Upstream currency
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#issue-publication-dates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Issue publication dates
       
     </span>
   </a>
@@ -1958,6 +2002,11 @@ Everything marked off does nothing until the thing in the last column is set.</p
 <td><a href="#upstream-currency">Upstream currency</a></td>
 <td>Off</td>
 <td><code>upstream.currency</code> under Settings</td>
+</tr>
+<tr>
+<td><a href="#issue-publication-dates">Issue publication dates</a></td>
+<td>On</td>
+<td><code>issues.dates</code> under Settings turns it off; turn it off where the deployment cannot reach the network</td>
 </tr>
 <tr>
 <td><a href="#patch-branches">Patch branches</a></td>
@@ -2903,6 +2952,37 @@ case, and every <code>GRYPE_</code> variable. None of the <code>OPENPSIRT_</code
 so a credential the scanner needs has to be given under a name of its own. The
 <code>GRYPE_</code> variables have no key in a configuration file: they are the scanner's,
 and stay in the environment in both modes.</p>
+<h3 id="replaced-inventories">Replaced inventories<a class="headerlink" href="#replaced-inventories" title="Permanent link">&para;</a></h3>
+<p>Each branch inventory a later upload replaced is scanned once more, against
+issues published while it was current, and what it finds is recorded as fixed
+when the replacement arrived. The upload's receipt counts it as found after
+fixed. Nothing is notified or assigned. A tag is never checked.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>When</td>
+<td>On the first scanner data dated at least <code>scanning.check-settle</code> after the replacement arrived, two days unless an administrator changes it under Settings</td>
+</tr>
+<tr>
+<td>Dates</td>
+<td>Each issue's publication date from <a href="#issue-publication-dates">Issue publication dates</a>. Where OSV has none, when this deployment first saw it, or, for an issue first seen at or after the replacement, the old inventory's last scan, marked publication date unknown. With the dates off, when this deployment first saw it</td>
+</tr>
+<tr>
+<td>Cost</td>
+<td>One more scan per replaced inventory, behind every waiting scan of a build, fifty asked for at a time</td>
+</tr>
+<tr>
+<td>After upgrading</td>
+<td>An inventory already replaced is never checked; one replaced after the upgrade is</td>
+</tr>
+</tbody>
+</table>
 <h3 id="cve-records">CVE records<a class="headerlink" href="#cve-records" title="Permanent link">&para;</a></h3>
 <p>A scanner matching by version range reports some versions the issue's own CVE
 record states are unaffected. A source keeps part of the record: NVD's range
@@ -3007,6 +3087,9 @@ is replaced in the same way: the file read is the newest one placed there.</p>
 </tr>
 </tbody>
 </table>
+<p>Turn <code>issues.dates</code> off under Settings as well. With no route to OSV the date
+pass warns every minute, and a replaced inventory's check that files a new
+issue waits for it, an hour at a time, for up to a day.</p>
 <h2 id="attachment-storage">Attachment storage<a class="headerlink" href="#attachment-storage" title="Permanent link">&para;</a></h2>
 <p>Absent is ordinary: with none of this set, attachments are off and everything
 else works. An operator who wants none should not have to run a bucket.</p>
@@ -3718,6 +3801,41 @@ affected and no upgrade step is needed.</p>
 the default is costing; names no public index knew or answered are mostly
 private modules and vendored forks, and they are the candidates to promote into
 <code>OPENPSIRT_UPSTREAM_INTERNAL</code> so they stop being asked about at all.</p>
+<h2 id="issue-publication-dates">Issue publication dates<a class="headerlink" href="#issue-publication-dates" title="Permanent link">&para;</a></h2>
+<p>On unless an administrator turns it off, under Settings. A background pass asks
+OSV, at <code>api.osv.dev</code>, when each issue was published and last modified, and
+stores the two dates. What goes out is the issue's public identifier, one
+request per name asked, and nothing about a build, a component or a product.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Asked</td>
+<td>Each published vulnerability once, then again monthly. An issue OSV does not know is asked daily for its first two weeks here, then monthly</td>
+</tr>
+<tr>
+<td>Names</td>
+<td>The issue's own identifier first, then its other names, until OSV knows one</td>
+</tr>
+<tr>
+<td>Unknown</td>
+<td>An issue OSV holds no record of has no date, and the issue page says so</td>
+</tr>
+<tr>
+<td>Turned off</td>
+<td>Nothing is asked. A replaced inventory's check dates an issue never dated by when this deployment first saw it; dates already held stay</td>
+</tr>
+<tr>
+<td>Egress</td>
+<td>Allow <code>api.osv.dev</code>. Nothing else is reached and a redirect is not followed. A pass that cannot reach it stops, and the issues stay due</td>
+</tr>
+</tbody>
+</table>
 <h2 id="outbound-exclusions">Outbound exclusions<a class="headerlink" href="#outbound-exclusions" title="Permanent link">&para;</a></h2>
 <p>Two fetches go to hosts somebody else chose: the repository a patch link names,
 and the directory and documents a supplier's description names. Both refuse
