@@ -142,6 +142,25 @@ func TestATrendCountsWhatIsNotFixedBySplitAndMarksWhatChanged(t *testing.T) {
 	})
 }
 
+func TestATrendInDaysCountsEachDay(t *testing.T) {
+	// Two hundred days need more than two words of the per-step bits.
+	httpapitest.EachReach(t, func(t *testing.T, r *httpapitest.Reach) {
+		trendSeeded(t, r)
+		got := readTrend(t, r, "security-testing-reader", "?days=200")
+		if len(got.Points) != 200 {
+			t.Fatalf("two hundred days are %d points", len(got.Points))
+		}
+		today := got.Points[199]
+		if today.At != time.Now().UTC().Format(time.DateOnly) || today.NotFixed != 3 ||
+			today.Opened != 1 || today.Fixed != 1 {
+			t.Errorf("today is %+v; want three not fixed, one opened and one fixed", today)
+		}
+		if arrived := got.Points[189]; arrived.Opened != 3 || got.Points[188].NotFixed != 0 {
+			t.Errorf("ten days ago is %+v after %+v; want the hub's three arriving that day", arrived, got.Points[188])
+		}
+	})
+}
+
 func TestATrendNarrowsAsTheQueueDoes(t *testing.T) {
 	httpapitest.EachReach(t, func(t *testing.T, r *httpapitest.Reach) {
 		trendSeeded(t, r)
@@ -363,6 +382,19 @@ func TestWhoMayTrendCodeFindings(t *testing.T) {
 			!strings.Contains(w.Body.String(), "series,cppcheck/default,1") ||
 			!strings.Contains(w.Body.String(), "clang-tidy/default tool-version from not stated to 19.1") {
 			t.Errorf("the file reads %s; want semgrep's disclosed code finding left out and the version change said", w.Body.String())
+		}
+	})
+}
+
+func TestACodeFindingTrendAskedInWeeksAndDaysIsRefused(t *testing.T) {
+	// A refusal, not a trend that could not be worked out.
+	httpapitest.TwoReach(t, func(t *testing.T, r *httpapitest.Reach) {
+		for _, route := range []string{trendOf, trendOf + ".csv", "/v1/code-finding-trend", "/v1/code-finding-trend.csv"} {
+			got := httpapitest.AsPerson(t, r, "security-testing-reader", http.MethodGet, route+"?weeks=4&days=30", "")
+			if got.Code != http.StatusUnprocessableEntity || !strings.Contains(got.Body.String(), "send one") {
+				t.Errorf("%s with weeks and days answered %d, want 422 saying to send one: %s",
+					route, got.Code, got.Body.String())
+			}
 		}
 	})
 }

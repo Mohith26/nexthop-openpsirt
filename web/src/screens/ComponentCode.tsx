@@ -1,6 +1,7 @@
 // Copyright Nexthop Systems Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { refusedAt, type Holding } from "../app/families";
 import { codeFindingsAt, repositoriesAt } from "../app/routes";
@@ -13,14 +14,14 @@ import {
 import { Failed } from "../ui/Failed";
 import { HeldLine } from "../ui/HeldLine";
 import { Loading } from "../ui/Loading";
-import { Pace, TREND_WEEKS, trendSaid } from "../ui/Charts";
+import { Pace, StepSwitch, type TrendStep, stepQuery, stepSaid, stepUnit } from "../ui/Charts";
 import { Wide } from "../ui/Wide";
 import { CODE_FINDING_STATES } from "./codeFindings";
 import { codeTrendAt, marksOf } from "./codeTrend";
 
 // The security testing half of the component screen: what the analyzers hold
-// on the source package, per series and state, and over twelve weeks on one
-// build. Drawn beside the dependency counts and never added to them, because a
+// on the source package, per series and state, and over thirty days or twelve
+// weeks on one build. Drawn beside the dependency counts and never added to them, because a
 // rule at a place and an advisory at a component are different units.
 
 // The columns, in the order a code finding meets them: what is worked first,
@@ -205,7 +206,7 @@ export function SecurityTesting({
   );
 }
 
-// Twelve weeks of code findings at the package and under it on one build: a
+// Thirty days, or twelve weeks once switched, of code findings at the package and under it on one build: a
 // panel of its own beside the dependency one, never a summed line. It is the
 // Security testing statistics read, asked where the reader reads security
 // testing material in the product, and drawn from its own answer; a refusal
@@ -233,26 +234,28 @@ export function CodeHistory({
     beneath_ecosystem: which.ecosystem,
     beneath_namespace: which.namespace,
   };
+  const [step, setStep] = useState<TrendStep>("day");
   const trend = useCodeFindingTrend(
     product,
-    { ...at, ...beneath, weeks: TREND_WEEKS },
+    { ...at, ...beneath, ...stepQuery(step) },
     !!at.branch_or_tag && !!at.variant,
   );
   const held = refusedAt(code, trend.error, product);
   const points = (trend.data?.points ?? []).map((each) => ({
     at: each.at,
     open: each.not_fixed,
-    opened: each.opened,
-    resolved: each.fixed,
+    new: each.opened,
+    corrected: each.fixed,
   }));
-  const moved = points.some((each) => each.open > 0 || each.opened > 0 || each.resolved > 0);
+  const moved = points.some((each) => each.open > 0 || each.new > 0 || each.corrected > 0);
   return (
     <div className="card" style={{ marginTop: 12 }}>
       <div className="screen-head" style={{ marginBottom: 8 }}>
-        <h3>Code findings · {trendSaid}</h3>
+        <h3>Code findings · {stepSaid(step)}</h3>
         <span className="eyebrow" style={{ marginLeft: "auto" }}>
           {at.branch_or_tag} · {at.variant}
         </span>
+        <StepSwitch step={step} onStep={setStep} />
       </div>
       {held !== code ? (
         <HeldLine at={held} />
@@ -261,10 +264,15 @@ export function CodeHistory({
       ) : trend.isPending ? (
         <Loading />
       ) : !moved ? (
-        <p className="hint">No code finding here in {trendSaid}.</p>
+        <p className="hint">No code finding here in {stepSaid(step)}.</p>
       ) : (
         <>
-          <Pace points={points} words={CODE_WORDS} marks={marksOf(trend.data)} />
+          <Pace
+            points={points}
+            words={CODE_WORDS}
+            marks={marksOf(trend.data)}
+            unit={stepUnit(step)}
+          />
           <p className="hint">
             <Link to={codeTrendAt({ ...at, ...beneath })}>Code findings over time →</Link>
           </p>
@@ -278,5 +286,6 @@ const CODE_WORDS = {
   line: "not fixed",
   what: "Code findings not fixed",
   fresh: "new code findings",
+  back: "returned",
   done: "fixed",
 };

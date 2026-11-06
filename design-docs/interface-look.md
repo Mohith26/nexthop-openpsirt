@@ -174,10 +174,20 @@ Each screen was compared with the restyled mockup control for control.
 | A gray canvas with raised white cards | One white plane with hairlines (§ The work surface) |
 | Uppercase letter-spaced labels; the accent on the primary button, a pressed chip and a selected tab; a tinted severity pill | § The work surface |
 
-The trend is drawn by hand: open as an area in its own band, new against
-resolved as paired bars beneath on their own scale, one x axis. On the chart
-library's one scale, open in thousands flattens weekly tens to the baseline. The
-severity split and the ring use the library.
+The trend is drawn by hand: open as an area in its own band, and beneath it on
+their own scale new with returned stacked above a zero line and corrected below
+it, one x axis. On the chart library's one scale, open in thousands flattens a
+day's tens to the baseline. A build's first scan, and a return after an upload
+that moved a sharp share of its build (`design-docs/analytics-program.md`
+§ Counting by identity), are dashed marks saying how many, never bars, so the
+inventory arriving or coming back sets no scale. The severity
+split and the ring use the library.
+
+| Rule | Reason |
+|---|---|
+| Every trend panel offers Daily and Weekly, daily first | |
+| The chart starts at the first step holding anything, so the open line's scale starts where scanning began | Before the first scan nothing is open, and drawn, the line spans zero to the whole inventory |
+| The open axis is labeled in whole numbers where brief labels would read the same | A fitted scale over a backlog moving by tens puts 8,271 and 8,290 both at 8.3k |
 
 ## Limits
 

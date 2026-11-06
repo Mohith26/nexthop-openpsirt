@@ -17,11 +17,12 @@ import { Outward } from "../ui/Outward";
 import { on } from "../ui/when";
 import { Editor } from "../ui/Editor";
 import { notACredential } from "../ui/noautofill";
-import { Pace, TREND_WEEKS, trendSaid } from "../ui/Charts";
+import { Pace, StepSwitch, type TrendStep, stepQuery, stepSaid, stepUnit } from "../ui/Charts";
 import { ranked, rankedLabel, rankedWhy, upgradeCount } from "../ui/ranked";
 import { ROLLED } from "../ui/severities";
 import { Incident, Severity } from "../ui/Severity";
 import { Shape } from "../ui/Shape";
+import { settled } from "../ui/trend";
 import { Wide } from "../ui/Wide";
 import { binaries, findingsAt, openIssues, promiseLinks } from "./componentLinks";
 import { useUpstreamSaid } from "../api/upstream";
@@ -1226,9 +1227,11 @@ function Ships({
 // The trend window of what opened and closed at this package and under it.
 function History({ product, pkg, here }: { product: string; pkg: Package; here: Build }) {
   const component = pkg.name;
+  const [step, setStep] = useState<TrendStep>("day");
   const trend = useQuery({
     queryKey: [
       "component-trend",
+      step,
       product,
       component,
       here.branch_or_tag,
@@ -1251,7 +1254,7 @@ function History({ product, pkg, here }: { product: string; pkg: Package; here: 
               ...(pkg.version ? { beneath_version: pkg.version } : {}),
               ...(here.ecosystem ? { beneath_ecosystem: here.ecosystem } : {}),
               ...(pkg.namespace ? { beneath_namespace: pkg.namespace } : {}),
-              weeks: TREND_WEEKS,
+              ...stepQuery(step),
             },
           },
         }),
@@ -1259,24 +1262,27 @@ function History({ product, pkg, here }: { product: string; pkg: Package; here: 
     retry: false,
   });
   const points = trend.data?.items ?? [];
-  const moved = points.some((each) => (each.opened ?? 0) > 0 || (each.resolved ?? 0) > 0);
+  // Anything open or moving, a first scan's baseline and a return after a gap
+  // included: the steps the chart draws.
+  const moved = settled(points).length > 0;
 
   return (
     <div className="card" style={{ marginTop: 12 }}>
       <div className="screen-head" style={{ marginBottom: 8 }}>
-        <h3>{trendSaid}</h3>
+        <h3>{stepSaid(step)}</h3>
         <span className="eyebrow" style={{ marginLeft: "auto" }}>
           {here.branch_or_tag} · {here.variant}
         </span>
+        <StepSwitch step={step} onStep={setStep} />
       </div>
       {trend.isError ? (
         <p className="hint">Could not be read.</p>
       ) : trend.isPending ? (
         <Loading />
       ) : !moved ? (
-        <p className="hint">Nothing opened or closed in {trendSaid}.</p>
+        <p className="hint">Nothing opened or closed in {stepSaid(step)}.</p>
       ) : (
-        <Pace points={points} />
+        <Pace points={points} unit={stepUnit(step)} />
       )}
     </div>
   );

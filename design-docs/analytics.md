@@ -85,8 +85,8 @@ shape, so a link between reports carries the same two parameters.
 | What is open is always now; a period bounds what closed in it | Deadlines move with policy, the minimum severity and end of life, so past open sets are not recoverable |
 | The rate asked for no period is the lifetime figure | |
 | The change log takes no default window | It must not look like it answers about everything |
-| A trend's window is a count of week steps | It is a series |
-| The longest window offered is two years | Over 8,407 open findings on two builds, twelve weeks take 1.28 s and a hundred and four 1.40 s, the file 1.43 s |
+| A trend's window is a count of daily or weekly steps | It is a series |
+| The longest window offered is two years | On the full-size image after a year of weekly rescans, 730 daily steps read in 448 ms on PostgreSQL and 1,031 ms on MySQL 8.4 (`design-docs/analytics-measurements.md` § Daily trend) |
 
 ## Settings
 

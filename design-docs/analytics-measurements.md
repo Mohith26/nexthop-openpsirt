@@ -7,6 +7,7 @@ Benchmark runs behind the analytics rules.
 - [Grouping before the join](#grouping-before-the-join)
 - [Planned upgrades page cost](#planned-upgrades-page-cost)
 - [Trend beneath a replaced version](#trend-beneath-a-replaced-version)
+- [Daily trend](#daily-trend)
 
 ## Grouping before the join
 
@@ -15,10 +16,10 @@ The rule is in `design-docs/analytics.md` § Computed on demand. Measured on
 
 | Report | Grouped to | Grouped first, against joined first |
 |---|---|---|
-| Backlog trend | Issue, product, and the moments it opened and closed | 15,053 rows sent against 367,577; 0.25 s against 1.58 s |
+| Backlog trend | Issue, component, product, opening run, and the moments it opened and closed | Grouped on issue, product and the moments: 15,053 rows sent against 367,577; 0.25 s against 1.58 s |
 | What each release holds | Build, issue and component | 0.17 s against 1.38 s |
 | Release readiness, what a build holds | Issue and component | 0.09 s against 0.33 s |
-| Release over release | Release and issue | Not measured: the data holds no tags |
+| Release over release | Release, issue and component name | 24 tags, 453,336 open findings: 0.46 to 0.57 s on PostgreSQL and 0.85 to 0.92 s on MySQL 8.4, against 0.24 to 0.28 s and 0.20 to 0.31 s grouped on release and issue; grouping on the component's identifier first measured no faster |
 | Aging buckets | Issue and product, then issue, with a flag per bucket | One statement, 0.9 s, against three per bucket taking 2.1 s together, with 133,000 decision occurrences |
 
 ## Planned upgrades page cost
@@ -116,3 +117,108 @@ form. The form in force unites them with the walk's answer in a derived table.
 |---|---|
 | One build | Nothing else in the deployment shares a name |
 | Each run settles its own statistics | A plan can differ between runs: MySQL 8.4 read the kernel's name in 469 ms on one run and 37 ms on another |
+
+## Daily trend
+
+Justifies `design-docs/analytics.md` § The period a report covers.
+`design-docs/analytics-program.md` § Steps and windows holds the steps. A trend's cost is the
+rows it reads, open at the window's start or moving in it, and the identity
+reads beside them: which builds' first scans opened them and which issues were
+present before the window. The number of steps is arithmetic over rows already
+read. Each figure is the median of five reads after a warm one, each engine run
+alone.
+
+### The full-size image
+
+The two histories of § Trend beneath a replaced version, the whole product's
+trend.
+
+| Window, one rescan | SQLite | PostgreSQL | MySQL 8.4 | MariaDB |
+|---|--:|--:|--:|--:|
+| 12 weeks | 629 ms | 288 ms | 660 ms | 377 ms |
+| 104 weeks | 650 ms | 286 ms | 620 ms | 380 ms |
+| 30 days | 640 ms | 285 ms | 625 ms | 413 ms |
+| 365 days | 638 ms | 275 ms | 600 ms | 497 ms |
+| 730 days | 640 ms | 291 ms | 715 ms | 469 ms |
+
+| Window, a year of weekly rescans | SQLite | PostgreSQL | MySQL 8.4 | MariaDB |
+|---|--:|--:|--:|--:|
+| 12 weeks | 61 ms | 35 ms | 74 ms | 64 ms |
+| 104 weeks | 1,352 ms | 397 ms | 1,041 ms | 696 ms |
+| 30 days | 50 ms | 33 ms | 45 ms | 36 ms |
+| 365 days | 1,258 ms | 366 ms | 916 ms | 694 ms |
+| 730 days | 1,211 ms | 448 ms | 1,031 ms | 823 ms |
+
+### Identity against the counts it replaced
+
+Twelve weekly steps, the same history read by the trend that counted rows
+opening and closing and by the one counting issues at components by identity.
+
+| Read, rows counted, then by identity | SQLite | PostgreSQL | MySQL 8.4 | MariaDB |
+|---|--:|--:|--:|--:|
+| One rescan, beneath the root | 902 ms, 1,449 ms | 333 ms, 405 ms | 1,733 ms, 1,797 ms | 766 ms, 729 ms |
+| One rescan, beneath the kernel | 684 ms, 689 ms | 195 ms, 244 ms | 1,132 ms, 1,214 ms | 879 ms, 642 ms |
+| A year, beneath the root | 139 ms, 143 ms | 127 ms, 142 ms | 111 ms, 151 ms | 118 ms, 162 ms |
+| A year, the kernel by its name | 93 ms, 151 ms | 28 ms, 45 ms | 60 ms, 722 ms | 67 ms, 471 ms |
+
+### A year of nightly scans
+
+700 components under 34 consumers, 260 issues, 148,614 findings after 365
+nights, read by somebody holding public and private reading. Each figure is
+one read after a warm one.
+
+| Window | SQLite | PostgreSQL | MySQL 8.4 | MariaDB |
+|---|--:|--:|--:|--:|
+| 12 weeks | 309 ms | 97 ms | 163 ms | 116 ms |
+| 52 weeks | 251 ms | 97 ms | 252 ms | 113 ms |
+| 104 weeks | 326 ms | 98 ms | 236 ms | 185 ms |
+| 30 days | 290 ms | 95 ms | 163 ms | 117 ms |
+| 365 days | 256 ms | 96 ms | 183 ms | 122 ms |
+| 730 days | 246 ms | 109 ms | 207 ms | 169 ms |
+
+### Nightly removals
+
+The full-size image, 60, 180 or 365 nightly uploads after the first scan, each
+dropping one leaf package in 30 and restoring the previous night's, so every
+night both removes and returns. A return is judged against the upload that
+removed it.
+
+| Window, 60 nights | SQLite | PostgreSQL | MySQL 8.4 | MariaDB |
+|---|--:|--:|--:|--:|
+| 7 days | 136 ms | 101 ms | 241 ms | 123 ms |
+| 30 days | 299 ms | 249 ms | 379 ms | 249 ms |
+| 365 days | 408 ms | 412 ms | 623 ms | 332 ms |
+
+| Nights, then window | SQLite | PostgreSQL | MySQL 8.4 | MariaDB |
+|---|--:|--:|--:|--:|
+| 60, 30 days | 299 ms | 249 ms | 379 ms | 249 ms |
+| 180, 30 days | 432 ms | 236 ms | | |
+| 365, 30 days | 627 ms | 325 ms | 582 ms | 730 ms |
+| 60, 365 days, 13,129 returns | 408 ms | 412 ms | 623 ms | 332 ms |
+| 180, 365 days, 39,833 returns | 1,112 ms | 705 ms | | |
+| 365, 365 days, 81,004 returns | 2,152 ms | 1,404 ms | 1,879 ms | 2,001 ms |
+
+| Read on SQLite | 7 days | 30 days | 365 days |
+|---|--:|--:|--:|
+| Every removing upload the build ever received worked out | 731 ms | 2,473 ms | 2,636 ms |
+| Only the uploads deciding a return, each build's in one comparison | 136 ms | 299 ms | 408 ms |
+| No upload worked out | 86 ms | 143 ms | 188 ms |
+
+| Reading | Detail |
+|---|---|
+| A window costs what it reaches, never its steps | 30 days against 12 weeks, and 730 days against 104 weeks, are within the noise on every engine |
+| A long window over a moving history is the closed rows | A year of weekly rescans, 30 days read 62 movements in 33 ms on PostgreSQL and 365 days read 6,402 in 366 ms |
+| The first scan is a baseline | One rescan, 11,751 issues the first scan brought in, which the row counts drew as 11,673 opened |
+| The build grouped on doubles a product's trend on SQLite | 1,230 ms against 629 ms after one rescan, so it is read off the group, which the opening run decides |
+| Present before costs most on SQLite | Beneath the root after one rescan, 11,751 issues entering in the window are asked about in batches: 547 ms more on SQLite, 72 ms more on PostgreSQL |
+| Present before by a name costs most on MySQL and MariaDB | A year of rescans, the kernel by its name: 722 ms against 60 ms on MySQL 8.4, 471 ms against 67 ms on MariaDB, and 45 ms on PostgreSQL |
+| Working out a sharp upload costs the uploads a return reverses | Nightly removals, 30 days: 299 ms on SQLite, against 2,473 ms working out every removing upload and 143 ms working out none |
+| A build that removes nightly costs more as it ages | Every past closure of a returning component is read: 30 days on SQLite take 299, 432 and 627 ms after 60, 180 and 365 nights; a 365-day window also holds six times the returns |
+
+| Caveat | Detail |
+|---|---|
+| One build | Nothing else in the deployment shares a name or a first scan |
+| One issue per package | The issue and the issue at a component count alike here, so the counts above hold for either unit |
+| Every engine was read keyed by issue and component | The key added a group column and a join to the component; the SQLite and PostgreSQL columns of the first three tables were read before sharp uploads were worked out only for returns, which changes nothing in histories that remove no component |
+| Each engine ran alone | Other test runs on the machine were waited out first |
+| Nightly removals at 180 nights were read on SQLite and PostgreSQL only | The blank cells were not measured |

@@ -20,19 +20,34 @@ import (
 	"github.com/nexthop-ai/openpsirt/internal/triage"
 )
 
-// PointBody is the state of the backlog at one moment.
+// PointBody is one step of the trend: what was open at its end, and what moved
+// in it, each counted as issues at components.
 type PointBody struct {
-	At         string         `json:"at" doc:"The end of this step, as a date"`
-	Open       int            `json:"open"`
-	Opened     int            `json:"opened" doc:"Findings that appeared during this step"`
-	Resolved   int            `json:"resolved" doc:"Findings that went away during this step"`
-	BySeverity map[string]int `json:"by_severity"`
-	// The two flows, split the same way. Arrivals against departures is what
-	// a backlog is read for: ten in and ten out is a team
-	// keeping pace where both are low, and a team losing ground where what
-	// arrives is critical and what leaves is not.
-	OpenedBySeverity   map[string]int `json:"opened_by_severity" doc:"Everything that appeared, split by severity"`
-	ResolvedBySeverity map[string]int `json:"resolved_by_severity" doc:"Everything that went away, split by the severity it held while it was open"`
+	At         string         `json:"at" format:"date" doc:"The last day of the step, which ends at midnight UTC after it"`
+	Open       int            `json:"open" doc:"Issues at components open at the end of the step"`
+	New        int            `json:"new" doc:"Issues at components open for the first time ever in the selection, other than through a build's first scan"`
+	Corrected  int            `json:"corrected" doc:"Issues at components that left the open set in the step by a fix and have not been open since. A later return takes one out of this count"`
+	Returned   int            `json:"returned" doc:"Issues at components back in the open set after having been in it before, other than those counted in restored"`
+	Restored   int            `json:"restored" doc:"Issues at components back in the open set after an upload that moved a sharp share of its build's inventory removed them: a broken inventory put right. Not in returned"`
+	Baseline   int            `json:"baseline" doc:"Issues at components a build's first scan brought into the open set. Not new: a first scan is an inventory arriving"`
+	FirstScans int            `json:"first_scans" doc:"Builds whose first scan was in the step"`
+	BySeverity map[string]int `json:"by_severity" doc:"Open, split by severity"`
+	// The flows, split the same way. Arrivals against departures is what a
+	// backlog is read for: ten in and ten out is a team keeping pace where
+	// both are low, and losing ground where what arrives is critical.
+	NewBySeverity       map[string]int `json:"new_by_severity" doc:"New, split by severity"`
+	CorrectedBySeverity map[string]int `json:"corrected_by_severity" doc:"Corrected, split by the severity each held while it was open"`
+	ReturnedBySeverity  map[string]int `json:"returned_by_severity" doc:"Returned, split by severity"`
+}
+
+// pointBody is a step as the chart reads it.
+func pointBody(p finding.Point) PointBody {
+	return PointBody{
+		At: core.LastDay(p.At), Open: p.Open, New: p.New, Corrected: p.Corrected, Returned: p.Returned, Restored: p.Restored,
+		Baseline: p.Baseline, FirstScans: p.FirstScans, BySeverity: p.BySeverity,
+		NewBySeverity: p.NewBySeverity, CorrectedBySeverity: p.CorrectedBySeverity,
+		ReturnedBySeverity: p.ReturnedBySeverity,
+	}
 }
 
 // ComparisonBody is what changed between two builds.
@@ -71,18 +86,26 @@ type ChangedBody struct {
 func registerAnalytics(api huma.API, in core.Deps) {
 	huma.Register(api, core.Requiring(huma.Operation{
 		OperationID: "get-trend", Method: http.MethodGet, Path: "/v1/trend",
-		Summary: "Show new, resolved and open over time",
-		Description: "Returns the three counts per step, with open split by severity, across " +
-			"every product you can see.\n\n" +
+		Summary: "Show the findings trend",
+		Description: "Returns, per step, the issues open at its end and the issues that moved in it, " +
+			"each split by severity, across every product you can see. Steps are weeks or days, " +
+			"ending at the coming midnight UTC, each dated by its last day.\n\n" +
+			"Each count is of an issue at a component: one CVE in three packages is three, and a " +
+			"package at a new version is the same package. Each is one identity however often it " +
+			"leaves and comes back. `new` is one never open before in the selection; `returned` is " +
+			"one open before; `restored` is one back after an upload removed it that moved as much " +
+			"of its build's inventory as the alert about a sharply moved inventory needs; " +
+			"`corrected` is one that left by a fix and has stayed out, so one that " +
+			"returns stops counting as corrected where it left. A build's first scan is no flow: what it brought is " +
+			"`baseline`, and `first_scans` says how many builds were first scanned in the step.\n\n" +
 			"Narrowable to part of a tree. `component` keeps one package at any version; " +
 			"`beneath` keeps a component and everything under it, which needs a branch and a " +
-			"variant naming exactly one build. A team that owns one area asks for its own " +
-			"three lines this way.\n\n" +
-			"Worked out when it is asked for.",
+			"variant naming exactly one build.\n\n" +
+			"Sending both `weeks` and `days` is refused.",
 		Tags: []string{"Findings"},
 	}, core.AnyPerson, "Answers only what you may see."), func(ctx context.Context, input *struct {
 		core.ScopeQuery
-		Weeks     int    `query:"weeks" default:"12" minimum:"1" maximum:"104"`
+		core.Steps
 		Component string `query:"component" doc:"Keep only what is open against components of this name, whatever version"`
 		Beneath   string `query:"beneath" doc:"Keep only what sits at this component or anywhere under it. A finding on a version a rescan replaced counts where the build's present version of its name sits. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A name the build does not hold answers 404, and one it holds as more than one component answers 409 naming the choices"`
 		Version   string `query:"beneath_version" doc:"The version, where the build holds that name at several"`
@@ -93,9 +116,10 @@ func registerAnalytics(api huma.API, in core.Deps) {
 		if err != nil {
 			return nil, err
 		}
-		const week = 7 * 24 * time.Hour
-		since := time.Now().UTC().Add(-time.Duration(input.Weeks) * week)
-
+		since, step, steps, err := input.Window(time.Now())
+		if err != nil {
+			return nil, err
+		}
 		scope, err := core.Scoped(ctx, in, subject, input.ScopeQuery)
 		if err != nil {
 			return nil, err
@@ -108,7 +132,7 @@ func registerAnalytics(api huma.API, in core.Deps) {
 		if err != nil {
 			return nil, err
 		}
-		points, err := finding.NewStore(in.DB.DB).Trend(ctx, subject, scope, since, week, input.Weeks,
+		points, err := finding.NewStore(in.DB.DB).Trend(ctx, subject, scope, since, step, steps,
 			finding.Within{Component: input.Component, Beneath: beneath})
 		if err != nil {
 			return nil, core.WentWrong(in.Logger, "the trend could not be worked out", err)
@@ -116,11 +140,7 @@ func registerAnalytics(api huma.API, in core.Deps) {
 		out := &core.ListOutput[PointBody]{}
 		out.Body.Items = make([]PointBody, 0, len(points))
 		for _, p := range points {
-			out.Body.Items = append(out.Body.Items, PointBody{
-				At: p.At.UTC().Format(time.DateOnly), Open: p.Open,
-				Opened: p.Opened, Resolved: p.Resolved, BySeverity: p.BySeverity,
-				OpenedBySeverity: p.OpenedBySeverity, ResolvedBySeverity: p.ResolvedBySeverity,
-			})
+			out.Body.Items = append(out.Body.Items, pointBody(p))
 		}
 		return out, nil
 	})
@@ -257,7 +277,7 @@ type ReleasePointBody struct {
 	BranchOrTag     string         `json:"branch_or_tag"`
 	BranchOrTagName string         `json:"branch_or_tag_name,omitempty" doc:"The branch or tag as it was spelled, or its name where no spelling was recorded"`
 	Cut             string         `json:"cut" doc:"The date the release was declared. It orders and labels them; the axis is the sequence"`
-	Open            int            `json:"open" doc:"Distinct issues open against it now, against today's vulnerability data rather than the day it was cut"`
+	Open            int            `json:"open" doc:"Issues at components open against it now, each issue counted once per component name, against today's vulnerability data rather than the day it was cut"`
 	BySeverity      map[string]int `json:"by_severity,omitempty"`
 }
 
