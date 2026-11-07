@@ -318,15 +318,20 @@ func (s *Store) inScope(ctx context.Context, subject access.Subject, scope Scope
 	switch {
 	case len(buildIDs) == 1:
 		filter.BuildID = buildIDs[0]
-		if filter.Beneath != nil {
+		if len(filter.Beneath) > 0 {
 			replaced, err := graph.Replaced(ctx, s.db, filter.BuildID)
 			if err != nil {
 				return 0, nil, nil, err
 			}
-			under, err := graph.ReplacedWithin(ctx, s.db, filter.BuildID, *filter.Beneath, replaced)
+			under, err := graph.ReplacedWithin(ctx, s.db, filter.BuildID, filter.Beneath, replaced)
 			if err != nil {
 				return 0, nil, nil, err
 			}
+			fromRoot, err := graph.RootAmong(ctx, s.db, filter.BuildID, filter.Beneath)
+			if err != nil {
+				return 0, nil, nil, err
+			}
+			filter.belowRoot = !fromRoot
 			// Over the rows the read lists: open now, or on the day asked.
 			held, heldArgs := openOn("f", filter.OpenOn)
 			if filter.replaced, err = holding(ctx, s.db, filter.BuildID, under,
@@ -334,7 +339,7 @@ func (s *Store) inScope(ctx context.Context, subject access.Subject, scope Scope
 				return 0, nil, nil, err
 			}
 		}
-	case filter.Beneath != nil:
+	case len(filter.Beneath) > 0:
 		return 0, nil, nil, refusal.Errorf("read findings beneath a component: a subtree is a walk"+
 			" over one build's edges, and %d builds are in scope", len(buildIDs))
 	}
@@ -523,9 +528,7 @@ func (s *Store) Groups(ctx context.Context, subject access.Subject, scope Scope,
 			// so name it: what is unknown is the route up to the build, not
 			// what sits directly above.
 			//
-			// It happens where the inventory places a component under
-			// something that is itself not reachable from the root — a
-			// fragment the producer described and never attached — and the
+			// It happens where every way up runs past the bound, and the
 			// honest answer is the half we hold rather than none of it.
 			if group.Owner == "" && group.Parent == "" && row.ConsumerID != nil {
 				if consumer, held := shipped[*row.ConsumerID]; held {
@@ -1073,9 +1076,9 @@ func (s *Store) decorate(ctx context.Context, buildIDs []int64, productID int64,
 func Ends(down []graph.Step) (owner, parent string, middle int) {
 	switch len(down) {
 	case 0:
-		// The inventory placed the component nowhere. Saying so is the honest
-		// answer; claiming the product itself pulls it in is a comfortable
-		// sentence and not a true one.
+		// No way up reaches the root within the bound. Saying so is the
+		// honest answer; claiming the product itself pulls it in is a
+		// comfortable sentence and not a true one.
 		return "", "", 0
 	case 1:
 		// The build pulls it in directly, so both ends are the build.

@@ -131,6 +131,15 @@ type Filter struct {
 	// other — which is a question about two or three kinds at once as
 	// readily as one, so it is a set.
 	Ecosystems []string
+	// Purl keeps what is open against components whose package identifier
+	// the prefix chooses, at any version, as the burndown chooses them. The
+	// store resolves it to purlComponents before the list is read.
+	Purl graph.PurlPrefix
+	// purlComponents is the components Purl chooses, set by the store: the
+	// type narrows the statement reading them and the package is tested on
+	// each identifier read, since no stored column holds it reduced. Read only
+	// where Purl is set; unset or empty, the list keeps nothing.
+	purlComponents []int64
 	// Under keeps what sits inside one container, by its name. UnderTheBuild
 	// asks for the other case: what the build holds directly, which has no
 	// consumer to name.
@@ -149,11 +158,12 @@ type Filter struct {
 	// costs is stated where the filter is: it is a question about a component
 	// in a build rather than about one route to it.
 	DeclaredAs []string
-	// Beneath keeps what sits at a component or anywhere under it, by the
-	// component's identifier: the same walk over the build's edges the
-	// dependency tree's cumulative count makes, so the number the tree draws
-	// and the list it opens agree. Nil is no narrowing.
-	Beneath *int64
+	// Beneath keeps what sits at one of these components or anywhere under
+	// one, by the components' identifiers: the same walk over the build's
+	// edges the dependency tree's cumulative count makes, so the number the
+	// tree draws and the list it opens agree. A finding under two starts is
+	// one row. Empty is no narrowing.
+	Beneath []int64
 	// BuildID is which build the query is over, set by the store rather than
 	// by a caller, for the same reason ProductID is: the walk beneath a
 	// component is a walk over one build's edges.
@@ -161,6 +171,10 @@ type Filter struct {
 	// replaced is the components the build no longer holds whose name sits
 	// beneath, read by the store with the build.
 	replaced []int64
+	// belowRoot is that the build's root is none of Beneath, read by the
+	// store with the build; a walk from elsewhere then leaves out what
+	// nothing pulls in (graph.WithinAny). Unread, the walk keeps it.
+	belowRoot bool
 	// State keeps groups by how far they have been decided. A group is an issue
 	// in a component across every occurrence it sits at, and its occurrences
 	// can be in different states, so what a group's state *is* had to be
@@ -611,6 +625,15 @@ func (f Filter) narrowRows(q *bun.SelectQuery) *bun.SelectQuery {
 		q = q.Where(`"f"."component_id" NOT IN (?)`,
 			componentsWhere(q, `"c"."name_folded" IN (?)`, bun.List(foldedNames(names))))
 	}
+	if !f.Purl.Empty() {
+		if len(f.purlComponents) == 0 {
+			// An empty list is a syntax error on two of the engines, and an
+			// empty set holds nothing.
+			q = q.Where("1 = 0")
+		} else {
+			q = q.Where(`"f"."component_id" IN (?)`, bun.List(f.purlComponents))
+		}
+	}
 	if kinds := trimmed(f.Ecosystems); len(kinds) > 0 {
 		// One subquery holding an OR rather than one per kind, because a
 		// component has one identifier and is of one kind: asking for two
@@ -772,12 +795,12 @@ func (f Filter) narrowRows(q *bun.SelectQuery) *bun.SelectQuery {
 		q = q.Where(held+")", asked...)
 	}
 	q = f.acrossVariants(q)
-	if f.Beneath != nil {
+	if len(f.Beneath) > 0 {
 		// The subtree as the engine walks it, not as a list of identifiers
 		// bound back in: under a build's root that list is the whole build.
 		// A finding on a version a rescan replaced is beneath wherever the
 		// present version of its name is.
-		q = q.Where(`"f"."component_id" IN (?)`, graph.WithinAnd(q.DB(), f.BuildID, *f.Beneath, f.replaced))
+		q = q.Where(`"f"."component_id" IN (?)`, graph.WithinAnd(q.DB(), f.BuildID, f.Beneath, f.replaced, !f.belowRoot))
 	}
 	q = f.byState(q)
 	if !f.BelowMinimumSeverity {

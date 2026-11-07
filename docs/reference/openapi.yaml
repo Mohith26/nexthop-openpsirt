@@ -1891,6 +1891,107 @@ components:
         - decisions
         - rows
       type: object
+    BurnPointBody:
+      additionalProperties: false
+      properties:
+        at:
+          description: The day, which ends at midnight UTC after it
+          format: date
+          type: string
+        baseline:
+          description: Issues at components a build's first scan brought. A mark, in no other count
+          format: int64
+          type: integer
+        dismissed:
+          description: Issues at components a dismissal in force answered, or a publisher stated are not affected, and that have not been left since
+          format: int64
+          type: integer
+        first_scans:
+          description: Builds whose first scan was on the day
+          format: int64
+          type: integer
+        fixed:
+          description: Issues at components that left by a fix and have not been left since
+          format: int64
+          type: integer
+        left:
+          description: Issues at components open at the end of the day and not answered by a dismissal in force
+          format: int64
+          type: integer
+        left_by_severity:
+          additionalProperties:
+            format: int64
+            type: integer
+          description: Left, split by the severity each held
+          type: object
+        new:
+          description: Issues at components left for the first time, other than through a build's first scan
+          format: int64
+          type: integer
+        restored:
+          description: Issues at components back after an upload removed them that moved a sharp share of its build's inventory. A mark, in no other count
+          format: int64
+          type: integer
+        returned:
+          description: Issues at components back after having been in the selection before, a dismissal that lapsed or was withdrawn included
+          format: int64
+          type: integer
+      required:
+        - at
+        - left
+        - left_by_severity
+        - new
+        - returned
+        - fixed
+        - dismissed
+        - restored
+        - baseline
+        - first_scans
+      type: object
+    BurndownBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/BurndownBody.json
+          format: uri
+          readOnly: true
+          type: string
+        chosen:
+          description: The packages a component name or a purl prefix chose, with the ecosystem each is in, at most 20. Empty where neither was sent
+          items:
+            $ref: "#/components/schemas/ChosenBody"
+          type:
+            - array
+            - "null"
+        more_chosen:
+          description: Whether the name or prefix chose more packages than chosen lists
+          type: boolean
+        points:
+          items:
+            $ref: "#/components/schemas/BurnPointBody"
+          type:
+            - array
+            - "null"
+        projection:
+          $ref: "#/components/schemas/ProjectionBody"
+        since:
+          description: Day 0, as used
+          format: date
+          type: string
+        start:
+          description: Left at the start of day 0
+          format: int64
+          type: integer
+      required:
+        - since
+        - start
+        - points
+        - projection
+        - chosen
+        - more_chosen
+      type: object
     CVSSv3:
       additionalProperties: false
       properties:
@@ -2311,6 +2412,22 @@ components:
       required:
         - run_id
         - at
+      type: object
+    ChosenBody:
+      additionalProperties: false
+      properties:
+        ecosystem:
+          description: The package identifier's type
+          type: string
+        name:
+          description: The component's name, folded for capitals
+          type: string
+        package:
+          description: The package identifier with version and qualifiers cut, or the name where the component has none
+          type: string
+      required:
+        - package
+        - name
       type: object
     Clear-incidentRequest:
       additionalProperties: false
@@ -5571,7 +5688,7 @@ components:
           description: The earliest of these occurrences opening here, as a date. The age a deadline relates to
           type: string
         owner:
-          description: The part of the product this belongs to. Absent where the inventory placed the component nowhere
+          description: The part of the product this belongs to; a component nothing pulls in is its own. Absent where every way up from it is longer than the tree is drawn
           type: string
         packages:
           description: The number of binaries of the source package here. More than one means deciding on this row decides about all of them
@@ -6276,6 +6393,65 @@ components:
           type: string
       required:
         - role
+      type: object
+    GroupBody:
+      additionalProperties: false
+      properties:
+        component:
+          $ref: "#/components/schemas/GroupedComponentBody"
+          description: The one component the group holds, where it holds exactly one
+        components:
+          description: How many of the build's components it holds now
+          format: int64
+          type: integer
+        fixed:
+          description: Issues at components that left by a fix and are open nowhere in the group now
+          format: int64
+          type: integer
+        key:
+          description: "The repository's or package's identifier with version and qualifiers cut, such as pkg:github/sonic-net/sonic-swss, or the ecosystem: the identifier's type, or none for components with no identifier"
+          type: string
+        open:
+          description: "Issues at components open in the build: at its components and, for a repository, everything beneath them"
+          format: int64
+          type: integer
+        open_by_severity:
+          additionalProperties:
+            format: int64
+            type: integer
+          description: Open, split by severity
+          type: object
+        versions:
+          description: "What the build ships of it now, as its identifiers state it: a repository's commits, a package's versions. At most five"
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+      required:
+        - key
+        - versions
+        - components
+        - open
+        - fixed
+        - open_by_severity
+      type: object
+    GroupedComponentBody:
+      additionalProperties: false
+      properties:
+        ecosystem:
+          description: Send it back as beneath_ecosystem
+          type: string
+        name:
+          type: string
+        namespace:
+          description: Send it back as beneath_namespace
+          type: string
+        version:
+          type: string
+      required:
+        - name
+        - version
       type: object
     GrownBody:
       additionalProperties: false
@@ -7557,6 +7733,28 @@ components:
         items:
           items:
             $ref: "#/components/schemas/EmbargoedBody"
+          type:
+            - array
+            - "null"
+        total:
+          format: int64
+          type: integer
+      required:
+        - items
+      type: object
+    ListBodyGroupBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/ListBodyGroupBody.json
+          format: uri
+          readOnly: true
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/GroupBody"
           type:
             - array
             - "null"
@@ -10695,6 +10893,39 @@ components:
             - array
             - "null"
       type: object
+    ProjectionBody:
+      additionalProperties: false
+      properties:
+        added:
+          description: New and returned over those days
+          format: int64
+          type: integer
+        converging:
+          description: Whether done outran added over those days
+          type: boolean
+        days:
+          description: "The latest days the pace is read over: 14, or every day where fewer are drawn"
+          format: int64
+          type: integer
+        done:
+          description: Fixed and dismissed over those days
+          format: int64
+          type: integer
+        per_day:
+          description: Done less added, a day. Zero or below is a backlog not converging
+          format: double
+          type: number
+        zero_on:
+          description: The day what is left reaches zero at that pace. Absent where it does not converge, or would take more than ten years
+          format: date
+          type: string
+      required:
+        - days
+        - done
+        - added
+        - per_day
+        - converging
+      type: object
     Propose-suppression-ruleRequest:
       additionalProperties: false
       properties:
@@ -13273,7 +13504,7 @@ components:
           description: The supplier's product those routes run through
           type: string
         chain:
-          description: The way down to here, the build first and this component last. Empty where the inventory left the component unplaced
+          description: The way down to here, the build first and this component last; for a component nothing pulls in, the build and itself. Empty where every way up from it is longer than the tree is drawn
           items:
             $ref: "#/components/schemas/StepBody"
           type:
@@ -14819,7 +15050,7 @@ components:
           description: The namespace its package identifier names, where it names one
           type: string
         placed:
-          description: False for a component the inventory put nowhere. Those sit at the end with no chain
+          description: False for a component whose every way up is longer than the tree is drawn. Those sit at the end with no chain. A component nothing pulls in is placed directly under the root
           type: boolean
         version:
           type: string
@@ -17233,6 +17464,254 @@ paths:
       x-openpsirt-requires:
         scope: person
         note: Answers only what you may see.
+  /v1/burndown:
+    get:
+      description: |-
+        Returns, for each day from day 0 through today, the issues left at its end and the issues that moved in it, with what was left at day 0's start and where the latest 14 days' pace takes the line.
+
+        Each count is of an issue at a component, as the trend counts. `left` is open and not answered by a dismissal in force: not applicable, wrong match, will not fix or already fixed, agreed by a second person or needing none. `fixed` and `dismissed` pull it down, a statement by a supplier or an upstream that it is not affected counting as dismissed; `new` and `returned` push it up, and a dismissal that lapses or is withdrawn is returned. A deferral, a planned upgrade and a waiting proposal answer nothing. `restored` and `baseline` are marks in no other count.
+
+        Narrowable as the trend is, and also by `purl`, a package identifier prefix, and by `severity`. `chosen` names the packages a name or a prefix matched, so a name two ecosystems share can be told apart.
+
+        Requires: any signed-in person, and not a pipeline key. Answers only what you may see.
+      operationId: get-burndown
+      parameters:
+        - description: Limit to one product, by name. Empty means every product you can see
+          explode: false
+          in: query
+          name: product
+          schema:
+            description: Limit to one product, by name. Empty means every product you can see
+            type: string
+        - description: Limit to one branch or tag. Only meaningful with a product
+          explode: false
+          in: query
+          name: branch_or_tag
+          schema:
+            description: Limit to one branch or tag. Only meaningful with a product
+            type: string
+        - description: Limit to one variant. Only meaningful with a product, and independent of the branch
+          explode: false
+          in: query
+          name: variant
+          schema:
+            description: Limit to one variant. Only meaningful with a product, and independent of the branch
+            type: string
+        - description: Day 0, as a date. Absent, the day the earliest finding in the selection opened. A day 0 more than 729 days back is moved to 729 days back, so at most 730 days are drawn, today included. A day after today is refused
+          explode: false
+          in: query
+          name: since
+          schema:
+            description: Day 0, as a date. Absent, the day the earliest finding in the selection opened. A day 0 more than 729 days back is moved to 729 days back, so at most 730 days are drawn, today included. A day after today is refused
+            format: date
+            type: string
+        - description: "The least severe band kept: high keeps critical and high. An unrated issue reads as medium"
+          explode: false
+          in: query
+          name: severity
+          schema:
+            description: "The least severe band kept: high keeps critical and high. An unrated issue reads as medium"
+            enum:
+              - low
+              - medium
+              - high
+              - critical
+            type: string
+        - description: Keep only what is open against components of this name, whatever version
+          explode: false
+          in: query
+          name: component
+          schema:
+            description: Keep only what is open against components of this name, whatever version
+            type: string
+        - description: "Keep only what is open against components whose package identifier this prefix chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss, or everything under a path ending in a slash such as pkg:github/sonic-net/. Without the slash it is that package alone. Matched without regard to capitals. A prefix that does not start with pkg: and a type is refused"
+          explode: false
+          in: query
+          name: purl
+          schema:
+            description: "Keep only what is open against components whose package identifier this prefix chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss, or everything under a path ending in a slash such as pkg:github/sonic-net/. Without the slash it is that package alone. Matched without regard to capitals. A prefix that does not start with pkg: and a type is refused"
+            type: string
+        - description: Keep only what sits at this component or anywhere under it. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A name the build does not hold answers 404, and one it holds as more than one component answers 409 naming the choices
+          explode: false
+          in: query
+          name: beneath
+          schema:
+            description: Keep only what sits at this component or anywhere under it. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A name the build does not hold answers 404, and one it holds as more than one component answers 409 naming the choices
+            type: string
+        - description: The version, where the build holds that name at several
+          explode: false
+          in: query
+          name: beneath_version
+          schema:
+            description: The version, where the build holds that name at several
+            type: string
+        - description: The ecosystem, for the few names a build holds at one version as two components
+          explode: false
+          in: query
+          name: beneath_ecosystem
+          schema:
+            description: The ecosystem, for the few names a build holds at one version as two components
+            type: string
+        - description: The namespace, for the few names a build holds at one version in one ecosystem as two components
+          explode: false
+          in: query
+          name: beneath_namespace
+          schema:
+            description: The namespace, for the few names a build holds at one version in one ecosystem as two components
+            type: string
+        - description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+          explode: false
+          in: query
+          name: beneath_purl
+          schema:
+            description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+            maxLength: 512
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BurndownBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Show the findings burndown
+      tags:
+        - Findings
+      x-openpsirt-requires:
+        scope: person
+        note: Answers only what you may see.
+  /v1/burndown.{format}:
+    get:
+      description: |-
+        One row per day from day 0, with what was left at its end, split by severity, what moved in it, and the running totals of added and done since day 0. The counts are the burndown's.
+
+        Each count is of an issue at a component, as the trend counts. `left` is open and not answered by a dismissal in force: not applicable, wrong match, will not fix or already fixed, agreed by a second person or needing none. `fixed` and `dismissed` pull it down, a statement by a supplier or an upstream that it is not affected counting as dismissed; `new` and `returned` push it up, and a dismissal that lapses or is withdrawn is returned. A deferral, a planned upgrade and a waiting proposal answer nothing. `restored` and `baseline` are marks in no other count.
+
+        Takes the burndown's parameters. Read with your own visibility, like the chart it comes from.
+
+        Requires: any signed-in person, and not a pipeline key. Exports only what you may see.
+      operationId: export-burndown
+      parameters:
+        - in: path
+          name: format
+          required: true
+          schema:
+            enum:
+              - csv
+              - json
+            type: string
+        - description: Limit to one product, by name. Empty means every product you can see
+          explode: false
+          in: query
+          name: product
+          schema:
+            description: Limit to one product, by name. Empty means every product you can see
+            type: string
+        - description: Limit to one branch or tag. Only meaningful with a product
+          explode: false
+          in: query
+          name: branch_or_tag
+          schema:
+            description: Limit to one branch or tag. Only meaningful with a product
+            type: string
+        - description: Limit to one variant. Only meaningful with a product, and independent of the branch
+          explode: false
+          in: query
+          name: variant
+          schema:
+            description: Limit to one variant. Only meaningful with a product, and independent of the branch
+            type: string
+        - description: Day 0, as a date. Absent, the day the earliest finding in the selection opened. A day 0 more than 729 days back is moved to 729 days back, so at most 730 days are drawn, today included. A day after today is refused
+          explode: false
+          in: query
+          name: since
+          schema:
+            description: Day 0, as a date. Absent, the day the earliest finding in the selection opened. A day 0 more than 729 days back is moved to 729 days back, so at most 730 days are drawn, today included. A day after today is refused
+            format: date
+            type: string
+        - description: "The least severe band kept: high keeps critical and high. An unrated issue reads as medium"
+          explode: false
+          in: query
+          name: severity
+          schema:
+            description: "The least severe band kept: high keeps critical and high. An unrated issue reads as medium"
+            enum:
+              - low
+              - medium
+              - high
+              - critical
+            type: string
+        - description: Keep only what is open against components of this name, whatever version
+          explode: false
+          in: query
+          name: component
+          schema:
+            description: Keep only what is open against components of this name, whatever version
+            type: string
+        - description: "Keep only what is open against components whose package identifier this prefix chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss, or everything under a path ending in a slash such as pkg:github/sonic-net/. Without the slash it is that package alone. Matched without regard to capitals. A prefix that does not start with pkg: and a type is refused"
+          explode: false
+          in: query
+          name: purl
+          schema:
+            description: "Keep only what is open against components whose package identifier this prefix chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss, or everything under a path ending in a slash such as pkg:github/sonic-net/. Without the slash it is that package alone. Matched without regard to capitals. A prefix that does not start with pkg: and a type is refused"
+            type: string
+        - description: Keep only what sits at this component or anywhere under it. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A name the build does not hold answers 404, and one it holds as more than one component answers 409 naming the choices
+          explode: false
+          in: query
+          name: beneath
+          schema:
+            description: Keep only what sits at this component or anywhere under it. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A name the build does not hold answers 404, and one it holds as more than one component answers 409 naming the choices
+            type: string
+        - description: The version, where the build holds that name at several
+          explode: false
+          in: query
+          name: beneath_version
+          schema:
+            description: The version, where the build holds that name at several
+            type: string
+        - description: The ecosystem, for the few names a build holds at one version as two components
+          explode: false
+          in: query
+          name: beneath_ecosystem
+          schema:
+            description: The ecosystem, for the few names a build holds at one version as two components
+            type: string
+        - description: The namespace, for the few names a build holds at one version in one ecosystem as two components
+          explode: false
+          in: query
+          name: beneath_namespace
+          schema:
+            description: The namespace, for the few names a build holds at one version in one ecosystem as two components
+            type: string
+        - description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+          explode: false
+          in: query
+          name: beneath_purl
+          schema:
+            description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+            maxLength: 512
+            type: string
+      responses:
+        "200":
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Export the findings burndown
+      tags:
+        - Analytics
+      x-openpsirt-requires:
+        scope: person
+        note: Exports only what you may see.
   /v1/code-finding-counts:
     get:
       description: |-
@@ -19233,6 +19712,14 @@ paths:
             description: Keep only rows whose component name or issue name contains this, ignoring capitals. Issue names include every alias, so searching the name a reporter used reaches the row filed under the name a scanner used. A way to find a package, or an advisory, in a list of thousands — where component is the exact package name
             maxLength: 200
             type: string
+        - description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+          explode: false
+          in: query
+          name: purl
+          schema:
+            description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+            maxLength: 512
+            type: string
         - description: Keep only components of these package kinds, as the package identifier spells them — deb, apk, rpm, golang, cargo, pypi, npm, gem, generic, oci, github, maven, or anything else a producer emits. The kind is read out of the identifier rather than chosen from a list, so any string is accepted and one nothing carries matches nothing. Not the language's name — Rust is cargo and Python is pypi
           explode: true
           in: query
@@ -19762,6 +20249,14 @@ paths:
           schema:
             description: Keep only rows whose component name or issue name contains this, ignoring capitals. Issue names include every alias, so searching the name a reporter used reaches the row filed under the name a scanner used. A way to find a package, or an advisory, in a list of thousands — where component is the exact package name
             maxLength: 200
+            type: string
+        - description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+          explode: false
+          in: query
+          name: purl
+          schema:
+            description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+            maxLength: 512
             type: string
         - description: Keep only components of these package kinds, as the package identifier spells them — deb, apk, rpm, golang, cargo, pypi, npm, gem, generic, oci, github, maven, or anything else a producer emits. The kind is read out of the identifier rather than chosen from a list, so any string is accepted and one nothing carries matches nothing. Not the language's name — Rust is cargo and Python is pypi
           explode: true
@@ -23678,6 +24173,71 @@ paths:
           - security-testing-triage
           - private-triage
         note: Both security-testing-triage and private-triage on the product.
+  /v1/products/{product}/branches-and-tags/{branch_or_tag}/variants/{variant}/component-groups:
+    get:
+      description: |-
+        The build's components grouped instead of drawn as a tree, most open first.
+
+        `by=repository` is one row per source repository a package identifier of type github names, such as pkg:github/sonic-net/sonic-swss, with the commits the build ships; its counts cover its components and everything beneath them, however the inventory places the repository. `by=ecosystem` is one row per identifier type, counting what is at its own components; with `ecosystem` it is one row per package of that type.
+
+        Each count is of an issue at a component, as the trend and the burndown count. Grouping is presentation: nothing is decided or counted per group. Reading the product is required; somebody holding no reading there is answered as though nothing was scanned.
+
+        Requires: any signed-in person, and not a pipeline key. Answers only what you may see.
+      operationId: list-component-groups
+      parameters:
+        - in: path
+          name: product
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: branch_or_tag
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: variant
+          required: true
+          schema:
+            type: string
+        - description: repository or ecosystem
+          explode: false
+          in: query
+          name: by
+          required: true
+          schema:
+            description: repository or ecosystem
+            enum:
+              - repository
+              - ecosystem
+            type: string
+        - description: With by=ecosystem, list the packages of this ecosystem instead of the ecosystems
+          explode: false
+          in: query
+          name: ecosystem
+          schema:
+            description: With by=ecosystem, list the packages of this ecosystem instead of the ecosystems
+            maxLength: 64
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListBodyGroupBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List a build's components by repository or ecosystem
+      tags:
+        - Findings
+      x-openpsirt-requires:
+        scope: person
+        note: Answers only what you may see.
   /v1/products/{product}/branches-and-tags/{branch_or_tag}/variants/{variant}/components:
     get:
       description: |-
@@ -28356,6 +28916,14 @@ paths:
           schema:
             description: The namespace, for the few names a build holds at one version in one ecosystem as two components
             type: string
+        - description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+          explode: false
+          in: query
+          name: beneath_purl
+          schema:
+            description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+            maxLength: 512
+            type: string
         - description: Keep only groups open in some builds of this selection and not others. Meaningless where the selection is one build, and ignored there
           explode: false
           in: query
@@ -28439,6 +29007,14 @@ paths:
           schema:
             description: Keep only rows whose component name or issue name contains this, ignoring capitals. Issue names include every alias, so searching the name a reporter used reaches the row filed under the name a scanner used. A way to find a package, or an advisory, in a list of thousands — where component is the exact package name
             maxLength: 200
+            type: string
+        - description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+          explode: false
+          in: query
+          name: purl
+          schema:
+            description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+            maxLength: 512
             type: string
         - description: Keep only components of these package kinds, as the package identifier spells them — deb, apk, rpm, golang, cargo, pypi, npm, gem, generic, oci, github, maven, or anything else a producer emits. The kind is read out of the identifier rather than chosen from a list, so any string is accepted and one nothing carries matches nothing. Not the language's name — Rust is cargo and Python is pypi
           explode: true
@@ -29000,6 +29576,14 @@ paths:
           schema:
             description: The namespace, for the few names a build holds at one version in one ecosystem as two components
             type: string
+        - description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+          explode: false
+          in: query
+          name: beneath_purl
+          schema:
+            description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+            maxLength: 512
+            type: string
         - description: Keep only groups open in some builds of this selection and not others. Meaningless where the selection is one build, and ignored there
           explode: false
           in: query
@@ -29083,6 +29667,14 @@ paths:
           schema:
             description: Keep only rows whose component name or issue name contains this, ignoring capitals. Issue names include every alias, so searching the name a reporter used reaches the row filed under the name a scanner used. A way to find a package, or an advisory, in a list of thousands — where component is the exact package name
             maxLength: 200
+            type: string
+        - description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+          explode: false
+          in: query
+          name: purl
+          schema:
+            description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+            maxLength: 512
             type: string
         - description: Keep only components of these package kinds, as the package identifier spells them — deb, apk, rpm, golang, cargo, pypi, npm, gem, generic, oci, github, maven, or anything else a producer emits. The kind is read out of the identifier rather than chosen from a list, so any string is accepted and one nothing carries matches nothing. Not the language's name — Rust is cargo and Python is pypi
           explode: true
@@ -29562,6 +30154,14 @@ paths:
           schema:
             description: The namespace, for the few names a build holds at one version in one ecosystem as two components
             type: string
+        - description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+          explode: false
+          in: query
+          name: beneath_purl
+          schema:
+            description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+            maxLength: 512
+            type: string
         - description: Keep only groups open in some builds of this selection and not others. Meaningless where the selection is one build, and ignored there
           explode: false
           in: query
@@ -29645,6 +30245,14 @@ paths:
           schema:
             description: Keep only rows whose component name or issue name contains this, ignoring capitals. Issue names include every alias, so searching the name a reporter used reaches the row filed under the name a scanner used. A way to find a package, or an advisory, in a list of thousands — where component is the exact package name
             maxLength: 200
+            type: string
+        - description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+          explode: false
+          in: query
+          name: purl
+          schema:
+            description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+            maxLength: 512
             type: string
         - description: Keep only components of these package kinds, as the package identifier spells them — deb, apk, rpm, golang, cargo, pypi, npm, gem, generic, oci, github, maven, or anything else a producer emits. The kind is read out of the identifier rather than chosen from a list, so any string is accepted and one nothing carries matches nothing. Not the language's name — Rust is cargo and Python is pypi
           explode: true
@@ -30138,6 +30746,14 @@ paths:
           schema:
             description: The namespace, for the few names a build holds at one version in one ecosystem as two components
             type: string
+        - description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+          explode: false
+          in: query
+          name: beneath_purl
+          schema:
+            description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+            maxLength: 512
+            type: string
         - description: Keep only groups open in some builds of this selection and not others. Meaningless where the selection is one build, and ignored there
           explode: false
           in: query
@@ -30221,6 +30837,14 @@ paths:
           schema:
             description: Keep only rows whose component name or issue name contains this, ignoring capitals. Issue names include every alias, so searching the name a reporter used reaches the row filed under the name a scanner used. A way to find a package, or an advisory, in a list of thousands — where component is the exact package name
             maxLength: 200
+            type: string
+        - description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+          explode: false
+          in: query
+          name: purl
+          schema:
+            description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+            maxLength: 512
             type: string
         - description: Keep only components of these package kinds, as the package identifier spells them — deb, apk, rpm, golang, cargo, pypi, npm, gem, generic, oci, github, maven, or anything else a producer emits. The kind is read out of the identifier rather than chosen from a list, so any string is accepted and one nothing carries matches nothing. Not the language's name — Rust is cargo and Python is pypi
           explode: true
@@ -30724,6 +31348,14 @@ paths:
           schema:
             description: The namespace, for the few names a build holds at one version in one ecosystem as two components
             type: string
+        - description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+          explode: false
+          in: query
+          name: beneath_purl
+          schema:
+            description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+            maxLength: 512
+            type: string
         - description: Keep only groups open in some builds of this selection and not others. Meaningless where the selection is one build, and ignored there
           explode: false
           in: query
@@ -30807,6 +31439,14 @@ paths:
           schema:
             description: Keep only rows whose component name or issue name contains this, ignoring capitals. Issue names include every alias, so searching the name a reporter used reaches the row filed under the name a scanner used. A way to find a package, or an advisory, in a list of thousands — where component is the exact package name
             maxLength: 200
+            type: string
+        - description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+          explode: false
+          in: query
+          name: purl
+          schema:
+            description: "Keep only what is open against components whose package identifier this chooses, whatever version and qualifiers: a package such as pkg:github/sonic-net/sonic-swss alone, or everything under a path ending in a slash such as pkg:github/sonic-net/. Matched without regard to capitals. One that does not start with pkg: and a type is refused"
+            maxLength: 512
             type: string
         - description: Keep only components of these package kinds, as the package identifier spells them — deb, apk, rpm, golang, cargo, pypi, npm, gem, generic, oci, github, maven, or anything else a producer emits. The kind is read out of the identifier rather than chosen from a list, so any string is accepted and one nothing carries matches nothing. Not the language's name — Rust is cargo and Python is pypi
           explode: true
@@ -36000,7 +36640,7 @@ paths:
       description: |-
         Keeps the findings list's current narrowing so it can be opened again. Saving under a name you already use replaces it: the act is deciding what that name means, and refusing would make somebody delete before they could correct.
 
-        The branch, the variant, anything naming one build or one run, and the grouping are left out of what is kept: `branch_or_tag`, `variant`, `beneath`, `beneath_version`, `beneath_ecosystem`, `beneath_namespace`, `differs`, `variants`, `opened_by_run`, `view`. Every other parameter is kept as sent.
+        The branch, the variant, anything naming one build or one run, and the grouping are left out of what is kept: `branch_or_tag`, `variant`, `beneath`, `beneath_version`, `beneath_ecosystem`, `beneath_namespace`, `beneath_purl`, `differs`, `variants`, `opened_by_run`, `view`. Every other parameter is kept as sent.
 
         Refused with 422 where adding the name would take you past the per-person limit.
 
@@ -36724,6 +37364,14 @@ paths:
           schema:
             description: The namespace, for the few names a build holds at one version in one ecosystem as two components
             type: string
+        - description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+          explode: false
+          in: query
+          name: beneath_purl
+          schema:
+            description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+            maxLength: 512
+            type: string
       responses:
         "200":
           content:
@@ -36836,6 +37484,14 @@ paths:
           name: beneath_namespace
           schema:
             description: The namespace, for the few names a build holds at one version in one ecosystem as two components
+            type: string
+        - description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+          explode: false
+          in: query
+          name: beneath_purl
+          schema:
+            description: "Keep only what sits at a component of this package, at any version the build ships it, or anywhere under one: a repository shipped at several commits, such as pkg:github/sonic-net/sonic-swss. A finding under two of them counts once. Not with beneath. A subtree is a walk over one build's edges, so this needs a product, a branch and a variant naming exactly one build. A package the build does not hold answers 404; a path ending in a slash, and a package the build holds as more than 20 components, are refused"
+            maxLength: 512
             type: string
       responses:
         "200":

@@ -92,6 +92,22 @@ A request names a component by name, narrowed where the name is not enough.
 | Findings rows, tree nodes, rows of the tree of one's own work, steps of a way down, component packages, and the unassigned, late, disposed, blocking and decision lists carry ecosystem and namespace | A screen sends back what it was given |
 | The finding and its reach, decision, assignment and labels, a component's neighbors, trend, open issues and decision about them, and a list narrowed beneath one, take all four and narrow alike | |
 
+### Package identifier prefixes
+
+A component set is chosen by a package identifier prefix: a whole package such
+as `pkg:github/sonic-net/sonic-swss`, or a path such as `pkg:github/sonic-net/`
+or `pkg:golang/github.com/sonic-net/`.
+
+| Rule | Reason |
+|---|---|
+| A component's identifier is reduced as identity reduces it: version, qualifiers and subpath cut, escapes decoded, the type lowercased | The same package at every version and every qualifier is one choice |
+| The typed prefix is reduced the same way, capitals ignored on both sides | A name people type matches regardless of capitals |
+| A prefix ending on `/` takes every package under the path; any other takes that package alone | `pkg:golang/go.opentelemetry.io/otel` is a package of its own beside `otel/trace`, and `pkg:github/sonic-net/sonic-swss` takes neither `sonic-swss-common` nor a component with no identifier |
+| The package is tested in the application on each row read. A statement reading components only to choose among them is narrowed by the prefix's type, bound and escaped | No stored column holds an identifier reduced and folded this way for a statement to compare |
+| The burndown, a subtree started at a package and the findings list's package filter choose through this one rule | |
+| A prefix with no `pkg:` scheme, or nothing past the type, is refused | |
+| A bare name chooses by name, at any version, in every ecosystem | The answer names each ecosystem the name matched |
+
 ## Upstream name and version
 
 Carried beside identity (REQ-18): a fork's vulnerability lives on the upstream
