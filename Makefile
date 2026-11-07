@@ -60,7 +60,11 @@ PYTHON ?= python3
 #
 # Computed rather than written as "./cmd/... ./internal/...", so a new
 # directory of ours is included without anybody remembering to add it.
-PACKAGES = $(shell $(GO) list ./... | grep -v '/node_modules/')
+#
+# Listed on first use and kept: an ordinary "=" runs go list at every
+# expansion, several in one "check" at 0.35 to 0.45 s each, and ":=" runs it
+# in every make, those that never read it included.
+PACKAGES = $(eval PACKAGES := $(shell $(GO) list ./... | grep -v '/node_modules/'))$(PACKAGES)
 
 BIN          := bin/openpsirt
 VERSION      ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -114,8 +118,15 @@ build:
 # The quick loop: SQLite only, packages in parallel, the build cache on, no
 # race detector. Seconds, so it is run after every change. The four-engine,
 # race-detected, uncached run is test-all, and the gate uses that.
+#
+# Test binaries are linked without DWARF, which nothing in a test reads: a
+# caller's file and line, a panic's trace and a race report come from the
+# symbol table the runtime carries. It cuts a relink of every test binary from
+# 55 s to 42 to 47 s in sequence, and the binaries from 1.8 GB to 1.4 GB.
+TEST_LINK := -ldflags=-w
+
 test:
-	OPENPSIRT_TEST_ENGINES=sqlite $(GO) test $(PACKAGES)
+	OPENPSIRT_TEST_ENGINES=sqlite $(GO) test $(TEST_LINK) $(PACKAGES)
 
 # Every configured engine, the race detector once, nothing cached. Packages run
 # in parallel: each test binary gets a database of its own on every engine
@@ -161,8 +172,13 @@ TEST_HALF := $(shell n=$$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/
 # rejects one fails the build.
 RACE_UNWATCHED = -gcflags='modernc.org/sqlite/lib=-race=false -d=checkptr=0' \
 	-gcflags='modernc.org/libc/...=-race=false -d=checkptr=0'
-RACE_PASS    = GORACE=atexit_sleep_ms=100 OPENPSIRT_TEST_ENGINES=sqlite $(GO) test -race $(RACE_UNWATCHED) -count=1
-SERVERS_PASS = OPENPSIRT_TEST_ENGINES=postgres,mysql,mariadb $(GO) test -count=1
+#
+# Both passes skip the vet "go test" runs first. The linter's govet runs every
+# analyzer go vet does over the test files, a superset of the ones "go test"
+# picks, and "make test" keeps them for the quick loop: 1.8 s and 11 s of
+# processor time per pass after a change low in the tree.
+RACE_PASS    = GORACE=atexit_sleep_ms=100 OPENPSIRT_TEST_ENGINES=sqlite $(GO) test -race $(RACE_UNWATCHED) -vet=off $(TEST_LINK) -count=1
+SERVERS_PASS = OPENPSIRT_TEST_ENGINES=postgres,mysql,mariadb $(GO) test -vet=off $(TEST_LINK) -count=1
 
 # Both passes at once. They share no engine — the detector runs on SQLite and
 # the portability pass on the three servers — so neither can see the other's
@@ -189,11 +205,18 @@ SERVERS_PASS = OPENPSIRT_TEST_ENGINES=postgres,mysql,mariadb $(GO) test -count=1
 # The label goes through a pipe, and the shell here runs with pipefail, so a
 # failing pass is still a failing pipeline. Watched going red one pass at a
 # time.
+#
+# The race pass runs every package, the server pass only those whose test
+# binaries reach a database. A binary holding no SQL connects to no engine, so
+# the server pass would run it as the race pass does, without the detector.
+# internal/tools/lanes reads the division from the dependency graph, and its
+# tests hold this recipe to it.
 test-all:
-	@( $(RACE_PASS) -p $(TEST_HALF) \
+	@servers=$$($(GO) run ./internal/tools/lanes $(PACKAGES)) || exit 1; \
+	( $(RACE_PASS) -p $(TEST_HALF) \
 	    $(PACKAGES) 2>&1 | awk '{ print "[sqlite -race] " $$0; fflush() }' ) & detector=$$!; \
 	( $(SERVERS_PASS) -p $(TEST_HALF) \
-	    $(PACKAGES) 2>&1 | awk '{ print "[servers]      " $$0; fflush() }' ) & portability=$$!; \
+	    $$servers 2>&1 | awk '{ print "[servers]      " $$0; fflush() }' ) & portability=$$!; \
 	failed=0; \
 	wait $$detector || failed=1; \
 	wait $$portability || failed=1; \
@@ -208,7 +231,8 @@ test-race:
 # socket, which is not where a race is found: 16.9 s against 12.0 s for the API
 # package on MariaDB, where the same package on SQLite is 73.6 s against 10.1 s.
 test-engines:
-	$(SERVERS_PASS) $(PACKAGES)
+	@servers=$$($(GO) run ./internal/tools/lanes $(PACKAGES)) || exit 1; \
+	  $(SERVERS_PASS) $$servers
 
 # The checks this change has to pass, chosen from what it touches.
 #
@@ -245,7 +269,7 @@ full:
 # that tier is "unclaimed", which is a check of its own.
 DOCS_PACKAGES := ./internal/docs/ ./internal/build/ ./internal/config/
 docs-check:
-	$(GO) test $(DOCS_PACKAGES)
+	$(GO) test $(TEST_LINK) $(DOCS_PACKAGES)
 
 # The upload client's own tests, which are what the macOS and Windows runners
 # take: it is the one program here that runs on a build host rather than in a
@@ -259,7 +283,7 @@ docs-check:
 CLIENT_PACKAGES := ./cmd/openpsirt-upload/ ./internal/uploadclient/
 CLIENT_SOURCES  := $(CLIENT_PACKAGES) ./internal/version/ ./internal/markdown/ ./internal/refusal/ ./internal/sarif/testdata/ Dockerfile go.mod go.sum .github/workflows/ci.yml
 client-test:
-	$(GO) test -count=1 $(CLIENT_PACKAGES)
+	$(GO) test $(TEST_LINK) -count=1 $(CLIENT_PACKAGES)
 
 # The two lists, printed for the workflow, which reads them rather than
 # keeping copies.
@@ -304,7 +328,12 @@ openapi:
 
 # Everything CI runs, reachable from one command, except the container and the
 # chart: those need docker and helm, and check-packaging holds them.
-check: build lint vet-other-os unreachable unclaimed vendored spdx reserved confined granted narrowed subjected attached readable negatives pins-check test-all sbom-shape govulncheck licenses secrets openapi-current sbom web-check
+#
+# The release binary is not built here. -trimpath makes it a second compilation
+# of every package, 23.5 s and 461 MB of build cache beside the test builds,
+# which already link every package and the program; the image job builds the
+# binary the way a release does.
+check: lint vet-other-os unreachable unclaimed vendored spdx reserved confined granted narrowed subjected attached readable negatives pins-check test-all sbom-shape govulncheck licenses secrets openapi-current sbom web-check
 ifneq ($(ENGINES_MISSING),)
 	@echo
 	@echo "NOT TESTED ON: $(ENGINES_MISSING). Those engines were not configured,"
@@ -326,22 +355,27 @@ web: web-deps
 
 # Reproducible, like every other dependency here: npm ci installs exactly what
 # the lockfile pins rather than re-resolving ranges at build time.
+#
+# A prerequisite of every target needing the install, never a recursive make,
+# so one make run installs once: "licenses", "web-api" and "web-check" in one
+# "check" are one npm ci.
 web-deps:
-	@command -v $(NPM) >/dev/null 2>&1 \
-	  || { echo "$(NPM) is needed to build the interface"; exit 1; }
+	@command -v $(NPM) >/dev/null 2>&1 || { \
+	  echo "npm not found, so the interface cannot be installed or checked here."; \
+	  echo "Install node, or run this on a machine that has it."; exit 1; }
 	$(NPM) --prefix web ci
 
 # The client is generated from the committed document, so a drifted
 # document is a compile error in the interface rather than a runtime surprise.
-web-api: openapi
+web-api: web-deps openapi
 	$(NPM) --prefix web run api
 	@git diff --exit-code -- web/src/api/schema.d.ts \
 	  || { echo "web/src/api/schema.d.ts is stale: run make web-api and commit it"; exit 1; }
 
 # What CI runs for the interface.
 #
-# It refuses without node rather than skipping, like "licenses" and
-# "web-audit" on the identical condition. A skip here is indistinguishable
+# It refuses without node rather than skipping, through "web-deps", like
+# "licenses" and "web-audit" on the identical condition. A skip here is indistinguishable
 # from a pass, and what it covers is the whole tier: the typecheck, the lint,
 # the stylelint, the tests and their coverage, the class collisions, the
 # tokens and the severity ladder. "make gate" routes a change touching only
@@ -351,11 +385,10 @@ web-api: openapi
 # A machine without node can still gate a Go-only change: that change lands in
 # the code tier, which does not reach here. What needs node is "make check",
 # which is everything CI checks and is meant to.
-web-check:
-	@command -v $(NPM) >/dev/null 2>&1 || { \
-	  echo "npm not found, so the interface cannot be checked here."; \
-	  echo "Install node, or run this on a machine that has it."; exit 1; }
-	$(MAKE) web-deps
+#
+# The client is regenerated first, as a prerequisite, so the typecheck reads
+# it and the install is shared.
+web-check: web-deps web-api
 	$(NPM) --prefix web run typecheck
 	$(NPM) --prefix web run format
 	$(NPM) --prefix web run lint
@@ -366,7 +399,6 @@ web-check:
 	$(NPM) --prefix web run ladder
 	$(NPM) --prefix web run copy
 	$(MAKE) web-audit
-	$(MAKE) web-api
 
 # Measurements, not gates.
 #

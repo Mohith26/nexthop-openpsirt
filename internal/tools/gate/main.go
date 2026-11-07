@@ -81,7 +81,7 @@ var runs = map[tier][]string{
 	documents:   {"docs-check", "unclaimed", "pins-check", "readable", "secrets"},
 	web:         {"web-check", "spdx", "readable", "secrets"},
 	webPackages: {"licenses"},
-	code: {"build", "lint", "vet-other-os", "unreachable", "readable", "negatives", "confined", "granted",
+	code: {"lint", "vet-other-os", "unreachable", "readable", "negatives", "confined", "granted",
 		"narrowed", "subjected", "attached", "vendored", "spdx", "pins-check", "sbom-shape", "secrets", "test"},
 	api:     {"openapi-current", "web-api"},
 	engines: {"reserved", "test-all", "check-engines"},
@@ -99,7 +99,7 @@ var runs = map[tier][]string{
 
 // The order targets are printed in, which is the order make runs them.
 var order = []string{
-	"build", "lint", "vet-other-os", "unreachable", "readable", "negatives", "reserved", "confined", "granted",
+	"lint", "vet-other-os", "unreachable", "readable", "negatives", "reserved", "confined", "granted",
 	"narrowed", "subjected", "attached", "vendored", "spdx", "pins-check", "secrets",
 	"docs-check", "unclaimed", "openapi-current", "govulncheck", "licenses", "sbom",
 	"test", "sbom-shape", "test-all", "check-engines", "web-check", "web-api", "check", "check-packaging",
@@ -150,7 +150,7 @@ func targets(reached map[tier]bool) []string {
 	if wanted["test-all"] {
 		delete(wanted, "test")
 	}
-	// So does the interface check, which ends by regenerating the client.
+	// So does the interface check, which regenerates the client first.
 	if wanted["web-check"] {
 		delete(wanted, "web-api")
 	}

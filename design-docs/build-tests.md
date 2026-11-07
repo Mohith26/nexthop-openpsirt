@@ -15,6 +15,7 @@ Satisfies REQ-75.
 - [The race pass](#the-race-pass)
 - [Engine selection](#engine-selection)
 - [Commit durability](#commit-durability)
+- [In-package test files](#in-package-test-files)
 - [Limits](#limits)
 
 ## Database engines
@@ -177,6 +178,8 @@ the detector's cost is in-process work. The detector is per binary, so
 
 | Rule | Reason |
 |---|---|
+| The server run takes only the packages whose test binaries reach `database/sql`; the race run takes every package | A binary holding no SQL connects to no engine, so the server run repeats it without the detector: 3.2 s and 10.8 s of processor time on a cold build cache |
+| A program reads the division from `go list -test`, never a list | Its tests report a package importing a database package that the server run lacks, a listed package outside the module, a recipe handing either run the other's list, and a listing that examined nothing or picked nothing |
 | The two runs go at once on half the cores each | One is in-process, the other waits on sockets: 100 s and 1.5 GB against 119 s and 3.4 GB in sequence |
 | Each run labels its lines as it prints | Held, a slow run looks stopped; unlabeled, nobody knows which failed |
 | A failure in either fails the target | Checked by breaking each |
@@ -186,6 +189,8 @@ the detector's cost is in-process work. The detector is per binary, so
 | A race inside the translated C or its C library is not reported | |
 | A test races this tree against the standard database layer and expects the report | Excluding more silences it |
 | The per-package compiler flags are undocumented | A Go release rejecting one fails the build loudly |
+| Neither run vets; `make test` keeps the vet `go test` runs | The linter's `govet` runs every analyzer `go vet` does over the test files (`design-docs/build.md` § Static analysis), and the subset `go test` picks cost each run 1.8 s and 11 s of processor time after a change low in the tree |
+| Every test target links its binaries without DWARF | Nothing in a test reads it: a caller's file and line and a race report's frames come from the runtime's own tables. A relink of every test binary is 42 to 47 s against 55 s in sequence |
 
 `design-docs/build-measurements.md` § The race pass has every configuration.
 
@@ -223,6 +228,18 @@ durability protects nothing and is most of a run's cost.
 
 `design-docs/build-measurements.md` § Commit durability has the timings.
 
+## In-package test files
+
+A test file in a package's own namespace builds a variant of the package for
+its test binary, and every package that binary holds which imports it is
+compiled again against that variant: the harness, the seeded world, and the
+findings package between them.
+
+| Rule | Reason |
+|---|---|
+| A package the harness or the seeded world imports tests through its exported surface where it can | The trail's tests build in 0.67 s against 2.4 to 3.1 s after a change to the findings package |
+| A test needing a moment the store stamps writes the row, then moves its timestamp in the database | The store's clock is unexported, and exporting it for a test is exported code with no caller |
+
 ## Limits
 
 | Limit | Detail |
@@ -232,3 +249,4 @@ durability protects nothing and is most of a run's cost.
 | Checkouts of two schemas running at once drop each other's free databases | Each drop costs the other one build |
 | The clean trusts the slot lock alone | A database used without its lock is dropped in use |
 | A check needing a running server refuses, never skips | A skip passes |
+| The graph, inventory reader, currency and access packages keep in-package test files | Each exposes an unexported value, bound or clock to its tests, and exporting one would be for a test alone; their test binaries still compile the packages between them and the harness twice |

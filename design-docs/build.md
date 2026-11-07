@@ -77,7 +77,7 @@ Satisfies REQ-43, REQ-61, REQ-62, REQ-63, REQ-75.
 | `internal/refusal/` | A caller-readable sentence, apart from a withheld fault. See `design-docs/api-refusals.md` |
 | `internal/webui/` | The embedded interface. See `design-docs/interface.md` |
 | `internal/weakness/` | Weakness catalog names. See `design-docs/findings-severity.md` |
-| `internal/docs/`, `internal/build/`, `internal/tools/` | Document checks, makefile checks, and the gate, release, rehearsal and image-inventory programs |
+| `internal/docs/`, `internal/build/`, `internal/tools/` | Document checks, makefile checks, and the gate, release, rehearsal, image-inventory and test-lane programs |
 | `web/` | The interface source. See `design-docs/interface.md` |
 | `deploy/helm/openpsirt/` | The chart. See `design-docs/packaging-chart.md` |
 | `docs/` | The documentation site |
@@ -103,6 +103,12 @@ Every CI check is a `make` target, reproducible locally with the same pinned
 tools (REQ-75). The Go package pattern is `go list` minus `node_modules`, never
 `./...`, which would compile and scan a Go package an npm dependency ships.
 
+| Rule | Reason |
+|---|---|
+| `check` and the gate never run `make build` | Its `-trimpath` compiles every package a second time: 23.5 s and 461 MB of build cache beside the test builds, which link every package and the program. The image job builds the binary as a release does (`design-docs/build-measurements.md` § Gate build work) |
+| The package list is read once per make run, on first use | `go list` takes 0.35 to 0.45 s, and a recursive assignment ran it at every expansion |
+| One make run installs the interface once: `licenses`, `web-api` and `web-check` share `web-deps` as a prerequisite, and `web-check` takes `web-api` as one | Each `npm ci` is 4 s locally and 7 to 8 s on a CI runner |
+
 | Target | Runs |
 |---|---|
 | `make build` | The binary, with version information |
@@ -111,7 +117,7 @@ tools (REQ-75). The Go package pattern is `go list` minus `node_modules`, never
 | `make test` | SQLite only, parallel, cached |
 | `make test-all` | Every configured engine, uncached: the two runs below, at once |
 | `make test-race` | SQLite with the race detector |
-| `make test-engines` | The three server engines, without the detector |
+| `make test-engines` | The three server engines, without the detector, over the packages reaching a database |
 | `make docs-check` | What a documents-only change can break |
 | `make lint` | Static analysis |
 | `make vet-other-os` | Type-checks for macOS, and the upload client for Windows |
@@ -137,7 +143,7 @@ tools (REQ-75). The Go package pattern is `go list` minus `node_modules`, never
 | `make spdx` | License headers; `make spdx-fix` writes missing ones. See `design-docs/build-dependencies.md` § License headers |
 | `make pins-check` | Versions pinned in two files agree |
 | `make go-version` | The image's Go release, which every workflow installs |
-| `make check` | Everything above. Needs npm |
+| `make check` | Everything above except `make build`. Needs npm |
 | `make check-engines` | All four engines ran as claimed, and the reserved-word list matches them |
 | `make reserved-words` | Rewrites the asked half of the reserved-word list from the engines |
 | `make weakness-names` | Rewrites weakness names and primary parents from the catalog. In no gate, since the catalog is unpinned |
@@ -165,7 +171,7 @@ run for a prose edit teaches people to skip it (REQ-75). Tiers accumulate.
 | `web/**` alone | `web-check`, `spdx`, `readable`, `secrets` |
 | the interface's manifest, lockfile or source | `licenses` too |
 | the interface's route table | the Go tier too, since a Go test holds server links to it |
-| Go reaching no SQL | `build`, `lint`, `vet-other-os`, `unreachable`, `readable`, `negatives`, `confined`, `granted`, `narrowed`, `subjected`, `attached`, `vendored`, `spdx`, `pins-check`, `sbom-shape`, `secrets`, `test` |
+| Go reaching no SQL | `lint`, `vet-other-os`, `unreachable`, `readable`, `negatives`, `confined`, `granted`, `narrowed`, `subjected`, `attached`, `vendored`, `spdx`, `pins-check`, `sbom-shape`, `secrets`, `test` |
 | a query, the schema, a migration, or the shared test harness | `reserved`, `test-all`, `check-engines` |
 | Go the API document is generated from: the registering package, or a field with a description | `openapi-current`, `web-api` |
 | `go.mod` or `go.sum` | `govulncheck`, `licenses`, `sbom`, and the engines tier |
@@ -256,6 +262,7 @@ directory and reads the interface.
 | `.golangci.yml` alone selects rules, each gating or advisory | No scope grandfathers a backlog (REQ-75) |
 | Documentation rules are off; error checking excludes conventional cleanup calls | |
 | The linter's `govet` is the vet, over test files and the `measure`-tagged file | Running `go vet` too cost 50 s of a two-core runner |
+| `test-all` passes `-vet=off`; `make test` keeps the vet of `go test` | That vet is a subset of the linter's |
 | A test holds that configuration: `govet` on and unnarrowed, test and generated files included, no exclusion naming either, the `measure` tag passed | The linter skips generated files by default |
 | The linter reports one issue per line | |
 | The linter's Go release is at least the code's | Otherwise it cannot read export data (`design-docs/build-dependencies.md` § Pinned pairs) |

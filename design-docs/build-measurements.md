@@ -1,7 +1,7 @@
 # Build measurements
 
-Benchmark runs behind the CI cache, test database, race pass and commit
-durability rules.
+Benchmark runs behind the CI cache, test database, race pass, commit
+durability and gate build rules.
 
 ## Contents
 
@@ -11,6 +11,7 @@ durability rules.
 - [Measurement databases](#measurement-databases)
 - [Commit durability](#commit-durability)
 - [Suite totals](#suite-totals)
+- [Gate build work](#gate-build-work)
 
 ## CI caches
 
@@ -130,3 +131,22 @@ databases an earlier run migrated and the 246 s migrated every one.
 The rules in `design-docs/build-tests.md` together bring the suite to one minute
 fifteen against warm servers and two minutes forty-five against cold ones, from
 four minutes four seconds.
+
+## Gate build work
+
+Rules in `design-docs/build.md` § Make targets, `design-docs/build.md` § Static
+analysis, `design-docs/build-tests.md` § The race pass and
+`design-docs/build-tests.md` § In-package test files. Twelve local cores, Go
+1.27.3.
+
+| Work | Before | After |
+|---|---|---|
+| `make build` over a build cache holding the plain build | 23.5 s wall, 97 s processor, 461 MB more cache | Not run; 13 s on a CI runner |
+| `npm ci` in one `make check` | Twice, 4 s each; 7 to 8 s each on a CI runner | Once |
+| The vet `go test` runs, per pass, after an exported change in a package most others import | 1.8 s wall, 11 s processor | None |
+| Linking every test binary, one at a time | 55 s; 1.8 GB of binaries | 42 to 47 s; 1.4 GB |
+| Linking the largest API test binary | 1.25 s wall, 1.65 s processor; 52 MB | 0.93 s, 1.10 s; 41 MB |
+| The server pass over the packages reaching no database, cold build cache | 3.2 s wall, 10.8 s processor | Not run |
+| The same, warm | 2.3 to 3.1 s wall, 7.4 s processor | Not run |
+| Building the trail's test binary after an exported change in the findings package | 2.4 to 3.1 s wall, 5.8 s processor | 0.67 s, 0.85 s |
+| `go list` of the module's packages in one `make check` | At every expansion, 0.35 to 0.45 s each | Once per make run |
