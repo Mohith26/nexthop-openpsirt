@@ -17,6 +17,7 @@ Satisfies REQ-75.
 - [Engine selection](#engine-selection)
 - [Commit durability](#commit-durability)
 - [In-package test files](#in-package-test-files)
+- [Test bodies](#test-bodies)
 - [Limits](#limits)
 
 ## Database engines
@@ -185,6 +186,7 @@ server, safely beside running tests.
 | The locks are the database's name and that name without its last part | The second is an older harness's per-package slot lock |
 | The drop happens under the locks, released after | A binary starting meanwhile takes another slot |
 | A database named for no slot is dropped | |
+| On PostgreSQL a database is marked not a template before its drop | A test marks a stale database a template to have its drop refused, and a binary killed before its cleanup leaves the mark. A lease's own housekeeping leaves the mark, so the refusal reaches it |
 
 ## Measurement databases
 
@@ -281,6 +283,20 @@ findings package between them.
 | A package the harness or the seeded world imports tests through its exported surface where it can | The trail's tests build in 0.67 s against 2.4 to 3.1 s after a change to the findings package |
 | A test needing a moment the store stamps writes the row, then moves its timestamp in the database | The store's clock is unexported, and exporting it for a test is exported code with no caller |
 
+## Test bodies
+
+Work a test repeats in its own body, past what the harness sets up.
+
+| Rule | Reason |
+|---|---|
+| A test reaching a bound sets a small one on its own store | The default's worth of rows took 3.6 to 3.8 s on PostgreSQL and MySQL, and the next test on PostgreSQL 3 s more emptying them. A package variable races with the package's parallel SQLite tests |
+| Cases ordering rows by each row's own values are pairs of rows in one world, each case a named subtest | A world per case is an API, a seeded code finding and two runs |
+| A test needing PostgreSQL to refuse a drop marks the database a template | A drop beside another open session is refused only after the server waits five seconds for it to leave |
+| A randomized comparison reaches each check it guards in a steady round | Its random rounds differ run to run: one PostgreSQL run of twelve in nineteen missed a block every run of twenty reached |
+| Its random rounds are the fewest reaching, over repeated runs on every engine and from several sets of seeds, the blocks a larger count reaches | A round past that reaches nothing new |
+
+`design-docs/build-measurements.md` § Test bodies has the timings.
+
 ## Limits
 
 | Limit | Detail |
@@ -292,3 +308,4 @@ findings package between them.
 | The clean trusts the slot lock alone | A database used without its lock is dropped in use |
 | A check needing a running server refuses, never skips | A skip passes |
 | The graph, inventory reader, currency and access packages keep in-package test files | Each exposes an unexported value, bound or clock to its tests, and exporting one would be for a test alone; their test binaries still compile the packages between them and the harness twice |
+| MySQL and MariaDB drop a database another session is open on | The test of a refused stale drop refuses nothing there |

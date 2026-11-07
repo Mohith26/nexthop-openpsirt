@@ -12,6 +12,7 @@ durability, seeded start, migration test and gate build rules.
 - [Commit durability](#commit-durability)
 - [Seeded test starts](#seeded-test-starts)
 - [Migration tests](#migration-tests)
+- [Test bodies](#test-bodies)
 - [Suite totals](#suite-totals)
 - [Gate build work](#gate-build-work)
 
@@ -172,6 +173,58 @@ at a time, the same workstation; two runs of the earlier tree:
 Covered statements were the same on every engine with one build per starting
 release. Fewer stops leaves three statements uncovered on PostgreSQL and SQLite,
 each returning from a stop, all covered on MySQL and MariaDB.
+## Test bodies
+
+Rules in `design-docs/build-tests.md` § Test bodies. One test alone on a
+workstation, before and after, except where a package is named.
+
+| Test, engine | Before | After |
+|---|---|---|
+| The upward tree's bound, SQLite | 0.54 to 0.59 s | 0.04 s |
+| The same, under the race detector | 2.12 to 2.27 s | 0.12 to 0.13 s |
+| The graph package, PostgreSQL | 10.1 s | 4.2 s |
+| The graph package, MySQL | 5.8 s | 1.8 s |
+| The graph package, MariaDB | 3.3 s | 1.6 s |
+| The queue ordered by the tool's rating, SQLite | 0.21 s | 0.09 s |
+| The same, under the race detector | 0.90 s | 0.38 s |
+| The same, PostgreSQL | 1.60 to 2.75 s | 0.44 to 0.46 s |
+| The same, MySQL | 0.57 s | 0.15 s |
+| The same, MariaDB | 0.56 s | 0.17 s |
+| A stale database's refused drop, PostgreSQL | 5.99 s | 0.94 s |
+| Interning a run against each report alone, twenty rounds and twelve, SQLite | 0.24 s | 0.18 to 0.19 s |
+| The same, under the race detector | 1.01 to 1.02 s | 0.78 to 0.84 s |
+| The same, PostgreSQL | 1.75 to 2.01 s | 1.33 to 1.54 s |
+| The same, MySQL | 0.89 to 1.23 s | 0.62 to 0.89 s |
+| The same, MariaDB | 0.96 to 1.19 s | 0.64 to 0.94 s |
+
+The interning comparison's coverage counts the blocks of every package in the
+module except the harness and the migrations, which only a run building its
+database reaches.
+
+| The test's seeds, three runs of each count | Blocks at twenty rounds | At twelve |
+|---|---|---|
+| SQLite | 838 | The same blocks |
+| PostgreSQL | 844 | The same blocks |
+| MySQL | 872 | The same blocks |
+| MariaDB | 864 | The same blocks |
+
+From four other sets of seeds, one run of each count, twelve rounds reach the
+blocks twenty do on every engine, and no set reaches a block the test's seeds
+do not.
+
+Each check below, turned off, fails the comparison on every engine in a steady
+round, so at any count of random rounds:
+
+| Check | Steady round |
+|---|---|
+| A severity filling an issue's gap | An issue held with no severity, reported with one |
+| An earlier day an issue was exploited | Exploited on a day, then reported exploited the day before |
+| A held weakness newly named the root cause | A root cause named after the last one was unmarked |
+| A marked root cause another report moves away | A root cause the issue holds no weakness for |
+
+Turning off the check for a rating the issue holds lower fails the comparison
+at twelve rounds and at eight, in the fifth random round; with no random rounds
+it passes.
 
 ## Suite totals
 
