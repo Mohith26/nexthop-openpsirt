@@ -150,6 +150,12 @@ func (x *boundedXML) end() error {
 // that is in the document's own namespace. fn consumes that element. Text
 // between them is layout, and is passed over.
 func (x *boundedXML) children(fn func(xml.StartElement) error) error {
+	return x.childrenIn(func(name xml.Name) bool { return name.Space == x.space }, fn)
+}
+
+// childrenIn is children over the elements read reports true for. Every other
+// element is walked past, as children walks past an extension.
+func (x *boundedXML) childrenIn(read func(xml.Name) bool, fn func(xml.StartElement) error) error {
 	defer x.leave()
 	for {
 		tok, err := x.token()
@@ -161,7 +167,7 @@ func (x *boundedXML) children(fn func(xml.StartElement) error) error {
 			if err := x.enter(); err != nil {
 				return err
 			}
-			if t.Name.Space != x.space {
+			if !read(t.Name) {
 				err = x.skip()
 			} else {
 				err = fn(t)

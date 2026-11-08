@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -412,6 +413,81 @@ func TestAnElementInAnotherNamespaceIsNotRead(t *testing.T) {
 	}
 }
 
+// graph11 is a document at 1.1, which states its graph through the dependency
+// graph extension: a depends on b, and b on c, stated by nesting.
+const graph11 = `<?xml version="1.0" encoding="UTF-8"?>
+<bom xmlns="http://cyclonedx.org/schema/bom/1.1" xmlns:dg="http://cyclonedx.org/schema/ext/dependency-graph/1.0">
+  <components>
+    <component type="library" bom-ref="a"><name>a</name><version>1</version></component>
+    <component type="library" bom-ref="b"><name>b</name><version>1</version></component>
+    <component type="library" bom-ref="c"><name>c</name><version>1</version></component>
+  </components>
+  <dg:dependencies>
+    <dg:dependency ref="a"><dg:dependency ref="b"><dg:dependency ref="c"/></dg:dependency></dg:dependency>
+    <dg:dependency ref="c"/>
+  </dg:dependencies>
+</bom>`
+
+// edgesByName is a document's edges, each as its parent's and child's names.
+func edgesByName(doc *sbom.Document) []string {
+	var edges []string
+	for _, d := range doc.Dependencies {
+		edges = append(edges, d.Parent.Name+" -> "+d.Child.Name)
+	}
+	return edges
+}
+
+func TestA11DocumentsGraphIsReadFromTheExtension(t *testing.T) {
+	doc := read(t, graph11)
+	if got, want := edgesByName(doc), []string{"a -> b", "b -> c"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("read edges %q, want %q", got, want)
+	}
+	// 1.2 states the same graph in the format's own namespace, and the two
+	// read as one document.
+	own := strings.NewReplacer(
+		"schema/bom/1.1", "schema/bom/1.2",
+		"<dg:", "<", "</dg:", "</").Replace(graph11)
+	sameDocument(t, read(t, own), doc)
+}
+
+func TestTheDependencyGraphExtensionIsReadAt11Only(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		// 1.2 has dependencies of its own, so the extension's is another
+		// namespace's element there.
+		{"at 1.2", strings.Replace(graph11, "schema/bom/1.1", "schema/bom/1.2", 1)},
+		{"in another namespace", strings.ReplaceAll(graph11,
+			"http://cyclonedx.org/schema/ext/dependency-graph/1.0", "urn:x")},
+		{"another of the extension's elements", strings.ReplaceAll(graph11,
+			"dg:dependencies>", "dg:graph>")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := read(t, tc.body)
+			if len(doc.Components) != 3 || len(doc.Dependencies) != 0 {
+				t.Errorf("read %d components and edges %q, want 3 components and no edges",
+					len(doc.Components), edgesByName(doc))
+			}
+		})
+	}
+}
+
+func TestTheMavenPluginsGraphAt11IsRead(t *testing.T) {
+	// The plugin's 1.1 output: every component listed under the extension's
+	// dependencies once, with what it depends on nested inside.
+	doc := read(t, string(fixtureBytes(t, "maven-cyclonedx-core-java.cdx.xml")))
+	edges := edgesByName(doc)
+	if len(doc.Components) != 18 || len(edges) != 10 {
+		t.Fatalf("read %d components and %d edges, want 18 and 10: %q", len(doc.Components), len(edges), edges)
+	}
+	for _, want := range []string{"xstream -> xmlpull", "xstream -> xpp3_min", "handy-uri-templates -> joda-time"} {
+		if !slices.Contains(edges, want) {
+			t.Errorf("edges %q lack %q", edges, want)
+		}
+	}
+}
+
 func TestADocumentOpeningWithAByteOrderMarkIsRead(t *testing.T) {
 	// cyclonedx-dotnet writes one, as .NET does by default.
 	sameDocument(t, read(t, minimalXML), read(t, "\xef\xbb\xbf"+minimalXML))
@@ -446,6 +522,7 @@ func TestXMLChargesTheSameBounds(t *testing.T) {
 		{"components", minimalXML, sbom.Limits{MaxComponents: 1}, "component limit"},
 		{"edges", twoEdges, sbom.Limits{MaxEdges: 1}, "dependency limit"},
 		{"nested edges", nestedEdges, sbom.Limits{MaxEdges: 1}, "dependency limit"},
+		{"edges through the 1.1 extension", graph11, sbom.Limits{MaxEdges: 1}, "dependency limit"},
 		{"depth", minimalXML, sbom.Limits{MaxDepth: 2}, "level limit"},
 		{"depth in an element nothing reads", unread, sbom.Limits{MaxDepth: 4}, "level limit"},
 		{"size", minimalXML, sbom.Limits{MaxBytes: 64}, "larger than the configured limit"},

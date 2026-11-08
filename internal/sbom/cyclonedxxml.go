@@ -16,6 +16,16 @@ import (
 // http://cyclonedx.org/schema/bom/1.6.
 const cyclonedxNamespace = "http://cyclonedx.org/schema/bom/"
 
+// dependencyGraphNamespace is the namespace of the extension a 1.1 document
+// states its dependencies through. 1.2 moved the same dependencies element,
+// with the same nesting and the same ref attribute, into the format's own
+// namespace.
+const dependencyGraphNamespace = "http://cyclonedx.org/schema/ext/dependency-graph/1.0"
+
+// graphByExtension is the one revision whose dependencies are read from the
+// extension's namespace.
+const graphByExtension = "1.1"
+
 // readXML reads a CycloneDX document encoded as XML.
 //
 // What is read is what the JSON encoding's reader reads, from the elements and
@@ -43,7 +53,20 @@ func (c *reader) cyclonedxXML() error {
 	if err := c.cyclonedxXMLDeclared(root); err != nil {
 		return err
 	}
-	err = c.x.children(func(el xml.StartElement) error {
+	// At 1.1 the dependencies element is the extension's, and it is read as the
+	// format's own. Every other element in another namespace is walked past.
+	extended := c.x.space == cyclonedxNamespace+graphByExtension
+	read := func(name xml.Name) bool {
+		return name.Space == c.x.space ||
+			extended && name.Space == dependencyGraphNamespace && name.Local == "dependencies"
+	}
+	err = c.x.childrenIn(read, func(el xml.StartElement) error {
+		if el.Name.Space != c.x.space {
+			if c.headerOnly {
+				return c.x.skip()
+			}
+			return c.xmlDependencies(el.Name.Space)
+		}
 		switch el.Name.Local {
 		case "metadata":
 			return c.xmlMetadata()
@@ -57,7 +80,7 @@ func (c *reader) cyclonedxXML() error {
 			if c.headerOnly {
 				return c.x.skip()
 			}
-			return c.xmlDependencies()
+			return c.xmlDependencies(c.x.space)
 		default:
 			return c.x.skip()
 		}
@@ -334,13 +357,15 @@ func (c *reader) xmlPatches(carried *[]Suppression) error {
 	})
 }
 
-// xmlDependencies reads the declared edges.
-func (c *reader) xmlDependencies() error {
-	return c.x.children(func(el xml.StartElement) error {
+// xmlDependencies reads the declared edges, from the elements in space: the
+// document's own namespace, or at 1.1 the dependency graph extension's.
+func (c *reader) xmlDependencies(space string) error {
+	in := func(name xml.Name) bool { return name.Space == space }
+	return c.x.childrenIn(in, func(el xml.StartElement) error {
 		if el.Name.Local != "dependency" {
 			return c.x.skip()
 		}
-		return c.xmlDependency(el)
+		return c.xmlDependency(el, in)
 	})
 }
 
@@ -351,15 +376,15 @@ func (c *reader) xmlDependencies() error {
 // The schema nests the element in itself without saying where that stops, and
 // a dependency nested in a nested one can only mean an edge from the one it is
 // nested in. How deep that goes is the depth bound's business.
-func (c *reader) xmlDependency(el xml.StartElement) error {
+func (c *reader) xmlDependency(el xml.StartElement, in func(xml.Name) bool) error {
 	parent := attr(el, "ref")
-	return c.x.children(func(child xml.StartElement) error {
+	return c.x.childrenIn(in, func(child xml.StartElement) error {
 		if child.Name.Local != "dependency" {
 			return c.x.skip()
 		}
 		if err := c.edge(parent, attr(child, "ref"), ""); err != nil {
 			return err
 		}
-		return c.xmlDependency(child)
+		return c.xmlDependency(child, in)
 	})
 }

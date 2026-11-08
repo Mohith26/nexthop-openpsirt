@@ -363,6 +363,9 @@ skipped xml:bom.components.component.hashes.hash:text
 skipped xml:bom.components.component.hashes.hash@alg:attribute
 read xml:bom.components.component.licenses.license.id:text
 read xml:bom.components.component.licenses.license.name:text
+skipped xml:bom.components.component.licenses.license.text:text
+skipped xml:bom.components.component.licenses.license.text@content-type:attribute
+skipped xml:bom.components.component.licenses.license.text@encoding:attribute
 skipped xml:bom.components.component.licenses.license.url:text
 read xml:bom.components.component.name:text
 skipped xml:bom.components.component.pedigree.ancestors.component.externalReferences.reference.url:text

@@ -78,6 +78,8 @@ var Held = []Entry{
 	{"internal/sbom/testdata/sbom-tool-hello.spdx3.json", "CC0-1.0", "https://github.com/spdx/spdx-examples"},
 	{"internal/sbom/testdata/maven-dropwizard.cdx.json", "CC0-1.0", "https://github.com/CycloneDX/bom-examples"},
 	{"internal/sbom/testdata/maven-dropwizard.cdx.xml", "CC0-1.0", "https://github.com/CycloneDX/bom-examples"},
+	{"internal/sbom/testdata/maven-cyclonedx-core-java.cdx.xml", "Apache-2.0",
+		"https://repo1.maven.org/maven2/org/cyclonedx/cyclonedx-core-java/3.0.0/"},
 	{"internal/sbom/testdata/saasbom-services.cdx.json", "CC0-1.0", "https://github.com/CycloneDX/bom-examples"},
 	{"internal/sbom/testdata/trivy-ubuntu.cdx.json", "BSD-3-Clause",
 		"https://github.com/DefectDojo/django-DefectDojo/blob/master/unittests/scans/cyclonedx/issue_9277.json"},

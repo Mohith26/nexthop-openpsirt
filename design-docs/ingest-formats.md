@@ -59,12 +59,14 @@ plugin's two encodings of one build to one build.
 | The attributes `bom-ref` and `type` | A component's in-file identifier and kind |
 | `serialNumber` on the top-level element | The document's identity |
 | A `dependency` element nested in its component, naming one by `ref` | What a component depends on |
+| At 1.1, `dependencies` in the namespace `http://cyclonedx.org/schema/ext/dependency-graph/1.0` | The same, through the dependency graph extension |
 
 | Rule | Reason |
 |---|---|
 | The encoding is told from the first character after layout and any byte-order mark | A pipeline's content type is its client's default |
 | The declaration is the top-level namespace, `http://cyclonedx.org/schema/bom/1.6`; any other is refused by name | SPDX's RDF encoding turned up once in 41 public inventories |
-| An element in another namespace is walked past | It is an extension, so a 1.1 document reads without its edges |
+| An element in another namespace is walked past | It is an extension |
+| At 1.1, the dependency graph extension's `dependencies` is read as the format's own, through the same walk and the same edge bound; at any other revision it is walked past | 1.1 states its graph only through the extension, and 1.2 moved the same element into the format |
 | A document type declaration is refused where met | It is how XML fetches files or expands to gigabytes, and no producer writes one |
 | UTF-8 only | Every producer seen writes it |
 | Size, depth, components, edges, licenses and claims are charged at the JSON walk's points, through the same functions; depth per element, unread ones included | |
