@@ -237,6 +237,7 @@ the detector's cost is in-process work. The detector is per binary, so
 | A program reads the division from `go list -test`, never a list | Its tests report a package importing a database package that the server run lacks, a listed package outside the module, a recipe handing either run the other's list, and a listing that examined nothing or picked nothing |
 | The two runs go at once on half the cores each | One is in-process, the other waits on sockets: 100 s and 1.5 GB against 119 s and 3.4 GB in sequence |
 | Each run labels its lines as it prints | Held, a slow run looks stopped; unlabeled, nobody knows which failed |
+| Each run ends on a line giving when it finished and how long after the start | CI reads it to measure the cores one run leaves idle |
 | A failure in either fails the target | Checked by breaking each |
 | The race binary sleeps 100 ms before exiting | The default second is paid per binary, the better part of a minute across the tree where the pass runs one package at a time |
 | The SQLite engine's translated C, its C library and the allocator under the library are built without the detector and its pointer checks, and nothing else is | They are most of the cost: an empty test takes 57 ms against 4.4 ms |

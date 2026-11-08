@@ -213,12 +213,20 @@ SERVERS_PASS = OPENPSIRT_TEST_ENGINES=postgres,mysql,mariadb $(GO) test -vet=off
 # the server pass would run it as the race pass does, without the detector.
 # internal/tools/lanes reads the division from the dependency graph, and its
 # tests hold this recipe to it.
+#
+# Each pass ends on a line saying when it finished and how long after the
+# start, with the pass's own status kept: while one pass runs alone, the
+# other's cores are idle, and CI measures how idle from those lines.
 test-all:
 	@servers=$$($(GO) run ./internal/tools/lanes $(PACKAGES)) || exit 1; \
-	( $(RACE_PASS) -p $(TEST_HALF) \
-	    $(PACKAGES) 2>&1 | awk '{ print "[sqlite -race] " $$0; fflush() }' ) & detector=$$!; \
-	( $(SERVERS_PASS) -p $(TEST_HALF) \
-	    $$servers 2>&1 | awk '{ print "[servers]      " $$0; fflush() }' ) & portability=$$!; \
+	started=$$(date +%s); \
+	finished() { echo "$$1 finished at $$(date -u +%Y-%m-%dT%H:%M:%SZ), $$(( $$(date +%s) - started )) s after the start"; }; \
+	( status=0; $(RACE_PASS) -p $(TEST_HALF) \
+	    $(PACKAGES) 2>&1 | awk '{ print "[sqlite -race] " $$0; fflush() }' || status=$$?; \
+	  finished "[sqlite -race]"; exit $$status ) & detector=$$!; \
+	( status=0; $(SERVERS_PASS) -p $(TEST_HALF) \
+	    $$servers 2>&1 | awk '{ print "[servers]      " $$0; fflush() }' || status=$$?; \
+	  finished "[servers]     "; exit $$status ) & portability=$$!; \
 	failed=0; \
 	wait $$detector || failed=1; \
 	wait $$portability || failed=1; \

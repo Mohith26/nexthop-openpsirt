@@ -210,6 +210,7 @@ run for a prose edit teaches people to skip it (REQ-75). Tiers accumulate.
 | Jobs needing only a checkout and Go are one job | |
 | The database servers are started by `make engines-up` on the runner's network in a step after the checkout, never as service containers, and waited for before `make check` | Service containers start one after another before the checkout, 29 to 51 s; a step overlaps the setup, and CI and a developer run one list of servers (`design-docs/build-tests.md` § Database engines) |
 | The runner's free memory, and each server's memory and data directory use, are printed at the end of every run, whatever failed | A run out of memory or a full data directory names its cause |
+| The processors are sampled every five seconds from the checkout on, and the last step prints their idle share for the job, for both test passes together and for the one left running alone | The cores one pass leaves idle are the room to start other checks in |
 | The checking job fetches every commit and tree and no file contents beyond its checkout | The vulnerability gates' few reads of the base fetch their files as read |
 | No composite action or reusable workflow | One Go setup remains, and a reusable workflow re-clones |
 | The macOS and Windows jobs run only when a client source moved | Those runners cost several Linux ones |
