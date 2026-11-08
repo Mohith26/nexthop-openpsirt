@@ -1,8 +1,8 @@
 # Build measurements
 
 Benchmark runs behind the CI cache, test database, race pass, commit
-durability, seeded start, migration test, gate build and other gate work
-rules.
+durability, seeded start, migration test, gate build, other gate work and
+server setting rules.
 
 ## Contents
 
@@ -17,6 +17,7 @@ rules.
 - [Suite totals](#suite-totals)
 - [Gate build work](#gate-build-work)
 - [Gate work outside the tests](#gate-work-outside-the-tests)
+- [Server processor time](#server-processor-time)
 
 ## CI caches
 
@@ -296,3 +297,16 @@ A module cache filled by every target of `make check` but the tests, and a
 build of every test binary, held 1,839 MB, 453 MB of it downloaded archives.
 With the archives deleted and the module proxy off, every target passed again
 and no archive was fetched.
+
+## Server processor time
+
+Rules in `design-docs/build-tests.md` § Database engines. `test-all` as CI runs
+it, both passes at once on two workers each, test binaries and the four servers
+pinned to the same four cores of a workstation, servers started fresh.
+
+| `test-all`, four cores | Published ports | Host network |
+|---|---|---|
+| Processor time, everything | 871 s | 815 s |
+| Of it, the port proxy | 77 s | None |
+| Of it, the four servers | 336 s | 338 s |
+| The server pass ends | 293 s | 269 s |

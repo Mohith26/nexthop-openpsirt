@@ -29,7 +29,12 @@ writes their URLs to the git-ignored `local.mk`, which the makefile includes.
 | Rule | Reason |
 |---|---|
 | Each server is asked with its own client, in its own container | "Up" is not answering, and no host client is assumed |
-| Each listens on loopback alone | They carry the password `test` |
+| Each listens on loopback alone: published on it by default, or bound to it on the host network where `ENGINE_NETWORK` is `host` | They carry the password `test` |
+| CI runs them on the host network | A published port's traffic passes through a proxy process: 77 of 871 processor-seconds of `test-all` on four cores |
+| Published ports stay the default | The host network of rootless Docker or a desktop virtual machine is not the machine's |
+| A published server listens on its image's port inside its container; on the host network each listens on its own | A container created before the choice existed still answers |
+| MySQL's X protocol listener is off | Nothing speaks it, and on the host network it would listen on every address |
+| A server is ready when it answers over TCP on loopback | Each image first initializes on a temporary server listening on a socket alone |
 | `local.mk` is never overwritten | It may point at an operator's own servers |
 | Starting is idempotent: a running engine is left, a stopped container started | |
 | CI starts its servers with `make engines-up`, from the same one list | A local pass means CI's only on the same servers |
@@ -38,6 +43,8 @@ writes their URLs to the git-ignored `local.mk`, which the makefile includes.
 | Each data directory is in memory under a cap: 1 GB PostgreSQL, 3 GB MySQL and MariaDB, 256 MB the floor server | Past it a write fails as a full disk on that server; unbounded, the four grow into the memory the tests run in. Two weeks of a workstation's runs left 349 MB, 1.6 GB, 1.6 GB and 47 MB, and the caps leave a 16 GB runner over 8 GB |
 | One server is below the supported version floor | The old-server refusal is exercised |
 | The URLs are read when make starts | The run writing `local.mk` is not the run using it |
+
+`design-docs/build-measurements.md` § Server processor time has the timings.
 
 ## Test databases
 

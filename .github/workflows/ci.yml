@@ -71,6 +71,9 @@ jobs:
       # The servers are throwaways, so the harness may turn off their commit
       # durability, which is global on MySQL and MariaDB.
       OPENPSIRT_TEST_RELAX_DURABILITY: "1"
+      # The servers on the runner's own network, each on its port above, so no
+      # proxy process carries the suite's traffic to them.
+      ENGINE_NETWORK: host
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
