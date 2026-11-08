@@ -98,6 +98,15 @@ jobs:
           version=$(make -s --no-print-directory go-version)
           [ -n "$version" ] || { echo "::error::the Dockerfile names no golang release"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      # The toolchain itself, where setup-go looks for one already installed.
+      # Downloading it takes setup-go under a second; copying it into the tool
+      # cache file by file takes 20 s more, and a restored one is found there.
+      # One release never changes, so the key is the release.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        id: go-toolchain
+        with:
+          path: ${{ runner.tool_cache }}/go/${{ steps.go.outputs.version }}
+          key: go-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.version }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
           go-version: ${{ steps.go.outputs.version }}
@@ -106,6 +115,11 @@ jobs:
           # on, the entry holding both is downloaded and extracted over the top
           # of the two below, and grows to hold the merged copy.
           cache: false
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        if: env.SAVES_CACHES == 'true' && steps.go-toolchain.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.tool_cache }}/go/${{ steps.go.outputs.version }}
+          key: go-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.version }}
       # The modules, keyed on what decides their content: the module's own and
       # each tool's under tools/, which the same directory holds. The
       # downloaded archives are left out: every module is also kept extracted,

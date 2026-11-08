@@ -227,6 +227,7 @@ run for a prose edit teaches people to skip it (REQ-75). Tiers accumulate.
 
 | Cache | Holds | Keyed on | Saved |
 |---|---|---|---|
+| Go toolchain | The Go release, installed where setup-go looks for it | The release, the runner's system and architecture | On `main`, when the key is new |
 | Go modules | Modules for the tree and pinned tools, extracted, without their downloaded archives | `go.sum` and each tool's | When the key is new |
 | Go build | Plain and race builds, test objects, tools built from source | The run, restored by prefix | On `main` |
 | Linter results | Per-package analysis by content | The run, restored by prefix | On `main` |
@@ -238,6 +239,7 @@ run for a prose edit teaches people to skip it (REQ-75). Tiers accumulate.
 | A pull request restores each and saves none | Its saves are keyed to a commit nothing rebuilds, and the 10 GB store evicts least recently used |
 | The build and linter caches keep only what the run read: entries are moved two hours back first, and unmoved ones deleted after | Both tools refresh an entry's time once it is an hour old. Saved whole, the build cache is 2.87 GB against 683 MB |
 | Linter results are keyed by package content | One changed file costs 9 to 12 s against 42 s with none, on four local cores |
+| The toolchain is restored before setup-go, which then finds it installed | setup-go downloads a release in under a second and copies it into the tool cache file by file in 20 s more |
 | A module's downloaded archive is not saved | Every module is kept extracted beside it, and nothing in the job reads the archive again |
 | The image's Go steps mount the build cache, never write it into a layer | A layer after the source copy is per commit: 441 MB and 499 MB became 39 MB and 131 kB |
 | The bill-of-materials tool is fetched beside `go mod download`, before the source copy | Its layer is reused |
