@@ -314,10 +314,24 @@ lint:
 # every other target builds for Linux, so a file marked !linux is compiled by
 # nothing else here, and a signature it shares with its Linux twin can change
 # under it with every check green. Vet type-checks without linking.
+#
+# Per system, only the packages compiling other files there than on Linux,
+# read by internal/tools/otheros. A package compiling the same files on both is
+# not vetted for the other system, so a Linux-only API in a file with no
+# constraint is caught only by a build there. The program refuses a file it picks
+# declaring an exported name, which would reach importers vetted on Linux
+# alone, and a test there holds every file kept off Linux to a system named
+# here. Windows also vets the upload client, the one program shipped for it.
+# Every package on macOS took 63.9 s on four cores from an empty build cache,
+# and this takes 36.4 s.
 .PHONY: vet-other-os
 vet-other-os:
-	GOOS=darwin $(GO) vet $(PACKAGES)
-	GOOS=windows $(GO) vet $(CLIENT_PACKAGES)
+	@for goos in darwin windows; do \
+	  picked=$$($(GO) run ./internal/tools/otheros $$goos ./...) || exit 1; \
+	  if [ $$goos = windows ]; then picked="$$picked $(CLIENT_PACKAGES)"; fi; \
+	  echo "GOOS=$$goos go vet" $$picked; \
+	  GOOS=$$goos $(GO) vet $$picked || exit 1; \
+	done
 
 fmt:
 	$(call tool,golangci-lint) fmt
@@ -366,6 +380,12 @@ web-deps:
 	  echo "npm not found, so the interface cannot be installed or checked here."; \
 	  echo "Install node, or run this on a machine that has it."; exit 1; }
 	$(NPM) --prefix web ci
+	@# The interface checks' caches belong to one install. The linter's results
+	@# outlive a plugin moving under an unchanged configuration, so they are
+	@# emptied whenever the lockfile differs from the one they were made under.
+	@cmp -s web/package-lock.json web/.cache/package-lock.json || { \
+	  rm -rf web/.cache; mkdir -p web/.cache; \
+	  cp web/package-lock.json web/.cache/package-lock.json; }
 
 # The client is generated from the committed document, so a drifted
 # document is a compile error in the interface rather than a runtime surprise.

@@ -30,6 +30,9 @@ Satisfies REQ-75.
 | Prettier alone formats | |
 | ESLint carries the hook rules: an impure read in render, an effect running every time, a value assigned and unused | A style rule firing on working code teaches people to ignore output |
 | Writing state from an effect is reported, never refused | Its fix, remounting with a key, must be checked in a browser |
+| The type check is `tsc -p` with `--incremental`, never `tsc -b` | One project with no references; build mode with `--noEmit` reused nothing, 10.7 s each run, against 1.2 s with the build information |
+| ESLint and Prettier cache per file by content | ESLint here is not type-aware, so a file's result depends on that file and the configuration alone: 14.6 s against 0.7 s, and 4.6 s against 0.6 s |
+| The three caches live in `web/.cache`, outside `node_modules`, and are emptied whenever the lockfile differs from the one they were made under | `npm ci` deletes `node_modules` every run; ESLint's results outlive a plugin moving under an unchanged configuration |
 
 ## Web test runs
 
@@ -38,6 +41,7 @@ Satisfies REQ-75.
 | Each test file runs in its own VM context and DOM, inside a child process running file after file | A process per file was 29 s against 9 s on four cores |
 | Processes, never threads | Node applies a time zone change only on a main thread, and a zone test passes vacuously under UTC; such a test asserts the zone took effect |
 | Whole-interface tests, addresses, query keys, screen copy and control names, share one file and one parse | 0.66 s against 1.19 s |
+| A test scheduling an animation frame waits for it, and a screen cancels its pending frames as it goes | A frame outliving its test fires inside a later one: jsdom has no `scrollIntoView`, and a findings-list frame failed 2 runs of 8 on four cores |
 
 ## Class-name checks
 
