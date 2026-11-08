@@ -226,7 +226,8 @@ the detector's cost is in-process work. The detector is per binary, so
 |---|---|
 | The server run takes only the packages whose test binaries reach `database/sql`; the race run takes every package | A binary holding no SQL connects to no engine, so the server run repeats it without the detector: 3.2 s and 10.8 s of processor time on a cold build cache |
 | A program reads the division from `go list -test`, never a list | Its tests report a package importing a database package that the server run lacks, a listed package outside the module, a recipe handing either run the other's list, and a listing that examined nothing or picked nothing |
-| The two runs go at once on half the cores each | One is in-process, the other waits on sockets: 100 s and 1.5 GB against 119 s and 3.4 GB in sequence |
+| The two runs go at once, the race run on half the cores and the server run on every core | The race run is in-process work; a server-run binary mostly waits on a socket, so its workers fill what the race run and the servers leave idle. Given half, the server run is bound by its own workers after the race run ends: 321 to 330 s against 227 to 229 s on four cores shared with the servers, 708 MB against 955 MB of test binaries at the peak |
+| Both runs name their packages in name order | `go test` starts them in the order named; with the server run on every core, longest first measured the same |
 | Each run labels its lines as it prints | Held, a slow run looks stopped; unlabeled, nobody knows which failed |
 | A failure in either fails the target | Checked by breaking each |
 | The race binary sleeps 100 ms before exiting | The default second is paid per binary, the better part of a minute across the tree where the pass runs one package at a time |
@@ -238,7 +239,8 @@ the detector's cost is in-process work. The detector is per binary, so
 | Neither run vets; `make test` keeps the vet `go test` runs | The linter's `govet` runs every analyzer `go vet` does over the test files (`design-docs/build.md` § Static analysis), and the subset `go test` picks cost each run 1.8 s and 11 s of processor time after a change low in the tree |
 | Every test target links its binaries without DWARF | Nothing in a test reads it: a caller's file and line and a race report's frames come from the runtime's own tables. A relink of every test binary is 42 to 47 s against 55 s in sequence |
 
-`design-docs/build-measurements.md` § The race pass has every configuration.
+`design-docs/build-measurements.md` § The race pass has every configuration, and
+`design-docs/build-measurements.md` § Test lanes every schedule of the two runs.
 
 ## Engine selection
 

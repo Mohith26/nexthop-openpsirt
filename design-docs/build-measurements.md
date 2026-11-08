@@ -1,14 +1,15 @@
 # Build measurements
 
-Benchmark runs behind the CI cache, test database, race pass, commit
-durability, seeded start, migration test, gate build and other gate work
-rules.
+Benchmark runs behind the CI cache, test database, race pass, test lane,
+commit durability, seeded start, migration test, gate build and other gate
+work rules.
 
 ## Contents
 
 - [CI caches](#ci-caches)
 - [Server database slots](#server-database-slots)
 - [The race pass](#the-race-pass)
+- [Test lanes](#test-lanes)
 - [Measurement databases](#measurement-databases)
 - [Commit durability](#commit-durability)
 - [Seeded test starts](#seeded-test-starts)
@@ -94,6 +95,43 @@ leaving it out too was measured on a later tree:
 
 Run with the server pass on twelve cores, everything warm: 119 s and 3.4 GB peak
 one after another, 100 s and 1.5 GB together.
+
+## Test lanes
+
+Rules in `design-docs/build-tests.md` § The race pass.
+
+The tests and the four database servers pinned to the same four cores, as on a
+CI runner, with the servers' data on disk and the build cache warm. Longest
+first orders a run by each package's time in an earlier run.
+
+| Schedule | Race workers | Server workers | Order | Wall time | Cores busy | Test binaries' peak memory |
+|---|---|---|---|---|---|---|
+| Both at once | 2 | 2 | Name | 321 to 330 s | 67 to 84% | 708 MB |
+| Both at once | 2 | 2 | Server run longest first | 299 s | 66% | |
+| Race run, then server run | 4 | 4 | Name | 269 s | 91% | |
+| Race run, then server run | 4 | 4 | Both longest first | 268 s | 90% | |
+| Server run, then race run | 4 | 4 | Name | 267 s | 92% | |
+| Server run, then race run | 4 | 4 | Both longest first | 244 s | 90% | |
+| Both at once | 1 | 3 | Name | 238 s | 86% | |
+| Both at once | 1 | 3 | Both longest first | 233 s | 88% | |
+| Both at once | 2 | 3 | Both longest first | 233 s | 83% | |
+| Both at once | 1 | 4 | Server run longest first | 227 s | 92% | |
+| Both at once | 2 | 4 | Name | 227 to 229 s | 91% | 955 MB |
+| Both at once | 2 | 4 | Server run longest first | 227 to 228 s | 94% | 892 MB |
+| Both at once | 2 | 4 | Both longest first | 217 s | 94% | |
+
+With two and two the race run ends at 107 s, and the server run's own two
+workers hold it for the next 220 s with 1.5 cores idle. With two and four the
+race run ends at 133 to 147 s, and the server run's longest packages take 140 to
+155 s against 100 s alone, because every core is busy; the run as a whole is
+near the 200 s that its 800 s of processor time, servers included, allow on
+four cores. Ordering the server run longest first moves its two longest
+packages from the twelfth and eighteenth places to the first two, which pays
+where the server run has few workers and measures the same where it has four.
+
+On twelve cores shared with the servers and with other work on the machine, six
+race workers and six server workers took 134 to 140 s and 1.9 GB of test
+binaries at the peak; six and twelve took 124 to 131 s and 2.4 to 2.5 GB.
 
 ## Measurement databases
 

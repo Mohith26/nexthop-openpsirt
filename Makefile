@@ -138,14 +138,21 @@ test:
 # first run did not — the argument already accepted for the two-engine form of
 # a test. It runs on SQLite, which needs no server and where each test holds a
 # database of its own, so those tests also run beside each other.
-# Half the cores, rounded down, and never below one. Each of the two passes
-# takes that, so the number of test binaries alive at once is what a single
-# pass has and the memory falls rather than rises: 1.5 GB against the 3.4 GB
-# the two reach running one after another with the whole machine each.
+#
+# The race pass takes half the cores, rounded down and never below one, and the
+# server pass every core. The race pass is in-process work and keeps its half
+# busy. A server-pass binary spends most of its time waiting on a socket, so its
+# workers fill what the race pass and the servers leave idle; given half, the
+# server pass is bound by its own workers while the race pass has finished and
+# cores sit idle: 321 to 330 s against 227 to 229 s on four cores shared with
+# the four servers, and 708 MB against 955 MB of test binaries at the peak.
+# design-docs/build-measurements.md § Test lanes has every schedule measured.
+#
 # Two ways of asking, because a machine with neither would assert two cores and
 # give each pass one package at a time — fewer than either pass had alone, and
 # nothing printed to say why.
-TEST_HALF := $(shell n=$$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2); h=$$((n / 2)); if [ $$h -lt 1 ]; then h=1; fi; echo $$h)
+TEST_CORES := $(shell n=$$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2); if [ $$n -lt 1 ]; then n=1; fi; echo $$n)
+TEST_HALF  := $(shell h=$$(( $(TEST_CORES) / 2 )); if [ $$h -lt 1 ]; then h=1; fi; echo $$h)
 
 # One spelling of each pass. test-all adds a package count and a label; the
 # standalone targets run the same command with the whole machine. Written twice,
@@ -217,7 +224,7 @@ test-all:
 	@servers=$$($(GO) run ./internal/tools/lanes $(PACKAGES)) || exit 1; \
 	( $(RACE_PASS) -p $(TEST_HALF) \
 	    $(PACKAGES) 2>&1 | awk '{ print "[sqlite -race] " $$0; fflush() }' ) & detector=$$!; \
-	( $(SERVERS_PASS) -p $(TEST_HALF) \
+	( $(SERVERS_PASS) -p $(TEST_CORES) \
 	    $$servers 2>&1 | awk '{ print "[servers]      " $$0; fflush() }' ) & portability=$$!; \
 	failed=0; \
 	wait $$detector || failed=1; \
