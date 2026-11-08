@@ -444,6 +444,13 @@ web-check: web-deps web-api
 # which -run already refuses for the whole invocation.
 MEASURED := ./internal/finding/ ./internal/notify/ ./internal/triage/ ./internal/httpapi/triageapi/ ./internal/database/migrate/migrations/ ./internal/publish/ ./internal/upstream/
 
+# The PostgreSQL test servers run without the query compiler, and a deployment
+# keeps PostgreSQL's default of compiling a query the planner estimates is
+# costly, which a measurement has caught costing 1,685 ms against 170 ms. So a
+# measurement asks for it back on its own sessions: the driver sends a URL
+# parameter it does not know to the server as a setting.
+MEASURE_POSTGRES_URL = $(OPENPSIRT_TEST_POSTGRES_URL)$(if $(findstring ?,$(OPENPSIRT_TEST_POSTGRES_URL)),&,?)jit=on
+
 measure:
 ifneq ($(ENGINES_MISSING),)
 	@echo "Not configured: $(ENGINES_MISSING). A measurement taken on SQLite alone"
@@ -459,6 +466,7 @@ endif
 	@# check is per package rather than over the combined run.
 	@for pkg in $(MEASURED); do \
 	  out=$$(mktemp); \
+	  OPENPSIRT_TEST_POSTGRES_URL='$(MEASURE_POSTGRES_URL)' \
 	  $(GO) test -tags measure -count=1 -v -timeout 60m \
 	    -run 'TestMeasure' "$$pkg" 2>&1 | tee "$$out"; \
 	  grep -q "^=== RUN   TestMeasure" "$$out" \

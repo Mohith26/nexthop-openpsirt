@@ -34,6 +34,7 @@ writes their URLs to the git-ignored `local.mk`, which the makefile includes.
 | Published ports stay the default | The host network of rootless Docker or a desktop virtual machine is not the machine's |
 | A published server listens on its image's port inside its container; on the host network each listens on its own | A container created before the choice existed still answers |
 | The PostgreSQL servers run without the query compiler (JIT), the floor server included | Compiling changes no result, and whether a query compiles turns on the planner's estimates, so its cost moves at random from run to run |
+| `make measure` turns the query compiler back on for its own sessions, through a setting on its PostgreSQL URL | A deployment keeps the compiler on, and a measurement has caught it costing 1,685 ms against 170 ms |
 | The MySQL server runs without its performance schema | Nothing a test asserts reads it, and it costs the server 3% of its processor time |
 | MySQL's X protocol listener is off | Nothing speaks it, and on the host network it would listen on every address |
 | A server is ready when it answers over TCP on loopback | Each image first initializes on a temporary server listening on a socket alone |
