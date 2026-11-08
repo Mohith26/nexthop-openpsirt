@@ -139,7 +139,13 @@ endif
 # lists say "lose my writes if you crash", which is the right answer for a
 # database that exists for ninety seconds and the wrong one everywhere else;
 # the packaging chart sets none of them.
-PG_AS_A_TEST_SERVER := -c fsync=off -c synchronous_commit=off -c full_page_writes=off
+#
+# PostgreSQL also runs without its query compiler. Compiling changes no result,
+# and whether a query is compiled turns on the planner's estimates, which move
+# with what earlier tests left in the statistics: one package's server time
+# was 169 s with compiling forced on against 13 s off, and unforced it added 0
+# to 70 s a run at random.
+PG_AS_A_TEST_SERVER := -c fsync=off -c synchronous_commit=off -c full_page_writes=off -c jit=off
 MY_AS_A_TEST_SERVER := --innodb-flush-log-at-trx-commit=0 --innodb-doublewrite=0 \
 	--sync-binlog=0 --skip-log-bin
 

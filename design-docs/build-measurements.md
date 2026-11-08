@@ -310,3 +310,10 @@ pinned to the same four cores of a workstation, servers started fresh.
 | Of it, the port proxy | 77 s | None |
 | Of it, the four servers | 336 s | 338 s |
 | The server pass ends | 293 s | 269 s |
+
+| PostgreSQL's query compiler | On | Off |
+|---|---|---|
+| The API package's server processor time, compiling forced for every query | 169 s | 13 s |
+| Server processor time one `test-all` adds, the planner choosing | 0 to 70 s, by run | None |
+| `test-all` on the host network, four cores: processor time, everything | 815 s | 765 s |
+| The same: the race pass ends, the server pass ends | 155 s, 269 s | 125 s, 263 s |

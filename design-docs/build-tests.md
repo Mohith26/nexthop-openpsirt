@@ -33,6 +33,7 @@ writes their URLs to the git-ignored `local.mk`, which the makefile includes.
 | CI runs them on the host network | A published port's traffic passes through a proxy process: 77 of 871 processor-seconds of `test-all` on four cores |
 | Published ports stay the default | The host network of rootless Docker or a desktop virtual machine is not the machine's |
 | A published server listens on its image's port inside its container; on the host network each listens on its own | A container created before the choice existed still answers |
+| The PostgreSQL servers run without the query compiler (JIT), the floor server included | Compiling changes no result, and whether a query compiles turns on the planner's estimates, so its cost moves at random from run to run |
 | MySQL's X protocol listener is off | Nothing speaks it, and on the host network it would listen on every address |
 | A server is ready when it answers over TCP on loopback | Each image first initializes on a temporary server listening on a socket alone |
 | `local.mk` is never overwritten | It may point at an operator's own servers |
