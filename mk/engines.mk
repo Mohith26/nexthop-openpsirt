@@ -144,7 +144,9 @@ endif
 # and whether a query is compiled turns on the planner's estimates, which move
 # with what earlier tests left in the statistics: one package's server time
 # was 169 s with compiling forced on against 13 s off, and unforced it added 0
-# to 70 s a run at random.
+# to 70 s a run at random. MySQL runs without its performance schema, which
+# nothing a test asserts reads: 3% of the server's processor time and 7% of the
+# wall time of the packages heaviest on MySQL. MariaDB's is off by default.
 PG_AS_A_TEST_SERVER := -c fsync=off -c synchronous_commit=off -c full_page_writes=off -c jit=off
 MY_AS_A_TEST_SERVER := --innodb-flush-log-at-trx-commit=0 --innodb-doublewrite=0 \
 	--sync-binlog=0 --skip-log-bin
@@ -218,7 +220,7 @@ engines-up:
 	up $(ENGINE_PREFIX)-mysql $(ENGINE_MYSQL_IMAGE) $(MYSQL_REACH) \
 	   --tmpfs $(MY_DATA_DIR):size=$(ENGINE_MYSQL_DATA) \
 	   -e MYSQL_ROOT_PASSWORD=test -e MYSQL_DATABASE=openpsirt -- $(MY_AS_A_TEST_SERVER) \
-	   --mysqlx=OFF $(call MY_LISTEN,$(MYSQL_INSIDE)) & \
+	   --mysqlx=OFF --performance-schema=OFF $(call MY_LISTEN,$(MYSQL_INSIDE)) & \
 	up $(ENGINE_PREFIX)-mariadb $(ENGINE_MARIADB_IMAGE) $(MARIADB_REACH) \
 	   --tmpfs $(MY_DATA_DIR):size=$(ENGINE_MARIADB_DATA) \
 	   -e MARIADB_ROOT_PASSWORD=test -e MARIADB_DATABASE=openpsirt -- $(MY_AS_A_TEST_SERVER) \

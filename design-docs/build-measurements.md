@@ -317,3 +317,8 @@ pinned to the same four cores of a workstation, servers started fresh.
 | Server processor time one `test-all` adds, the planner choosing | 0 to 70 s, by run | None |
 | `test-all` on the host network, four cores: processor time, everything | 815 s | 765 s |
 | The same: the race pass ends, the server pass ends | 155 s, 269 s | 125 s, 263 s |
+
+| MySQL alone: the migrations, harness, findings and program packages | Performance schema on | Off |
+|---|---|---|
+| MySQL's processor time | 84.1 s | 81.3 s |
+| Wall time | 76.6 s | 71.1 s |
